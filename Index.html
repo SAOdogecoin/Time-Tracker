@@ -176,61 +176,73 @@
   .top-bar-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--color-border); background: var(--color-surface); cursor: pointer; color: var(--color-text-primary); transition: background-color 0.2s; }
   .top-bar-btn:hover { background: var(--color-bg-hover); }
 
-  /* Customize trigger as transparent pill with text */
+  /* Customize trigger as transparent pill with blur - iOS style */
   #customize-trigger {
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    background: var(--color-bg-hover);
     backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     width: auto;
-    height: 36px;
-    padding: 0 16px;
-    border-radius: 18px;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
+    gap: 6px;
+    font-size: 13px;
     font-weight: 500;
+    transition: all 0.2s;
   }
   #customize-trigger:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.4);
+    background: var(--color-bg);
+    transform: scale(1.02);
   }
   #customize-trigger .icon {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
   }
   body.has-custom-bg #customize-trigger {
-    border-color: rgba(255, 255, 255, 0.4);
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.12);
+  }
+  body.has-custom-bg #customize-trigger:hover {
+    background: rgba(255, 255, 255, 0.18);
   }
 
-  /* Smaller profile pic in topbar */
+  /* Profile pic in topbar */
   #user-menu-trigger {
+    width: 40px;
+    height: 40px;
+  }
+  #user-menu-trigger .profile-pic {
     width: 36px;
     height: 36px;
   }
-  #user-menu-trigger .profile-pic {
-    width: 32px;
-    height: 32px;
-  }
 
+  /* Admin panel trigger - same style as customize */
   .admin-panel-trigger {
       display: flex;
       align-items: center;
-      gap: 8px;
-      height: 44px;
-      padding: 0 16px;
-      border-radius: var(--radius-md);
+      gap: 6px;
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 16px;
       border: none;
-      background: transparent;
+      background: var(--color-bg-hover);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       cursor: pointer;
       color: var(--color-text-primary);
-      transition: background-color 0.2s;
-      font-weight: 600;
-      font-size: 14px;
+      transition: all 0.2s;
+      font-size: 13px;
+      font-weight: 500;
   }
   .admin-panel-trigger:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg);
+      transform: scale(1.02);
+  }
+  .admin-panel-trigger .icon {
+      width: 16px;
+      height: 16px;
   }
 
   #user-menu-trigger {
@@ -469,10 +481,9 @@
       border-radius: 12px;
       padding: 8px;
   }
-  .log-item { display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; border-radius: var(--radius-md); padding: 8px; position: relative; border: 2px solid transparent; }
-  .log-item:hover { background-color: var(--color-bg-hover); transform: translateX(4px); }
-  .log-item.active-log { background-color: var(--color-bg-hover); border-color: var(--color-text-primary); box-shadow: 0 0 0 1px var(--color-text-primary); }
-  .log-item.active-log::before { content: ''; position: absolute; left: -2px; top: 50%; transform: translateY(-50%); width: 4px; height: 60%; background: var(--color-text-primary); border-radius: 2px; }
+  .log-item { display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; border-radius: var(--radius-md); padding: 8px; position: relative; }
+  .log-item:hover { background-color: var(--color-bg-hover); }
+  .log-item.active-log { background-color: var(--color-bg-hover); }
   .log-item-info { display: flex; align-items: center; gap: 12px; }
   .log-icon-wrapper { width: 32px; height: 32px; border-radius: 50%; background-color: var(--color-bg); display: flex; align-items: center; justify-content: center; }
   .log-label { font-weight: 500; color: var(--color-text-primary); }
@@ -631,15 +642,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--color-surface);
   }
   .theme-card:hover {
     border-color: var(--color-text-secondary);
     transform: scale(1.05);
   }
   .theme-card.active {
-    border-color: var(--color-text-primary);
-    border-width: 3px;
+    background: var(--color-bg-hover);
+    box-shadow: 0 0 0 2px var(--color-text-primary);
   }
   .theme-card.active::after {
     content: '✓';
