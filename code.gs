@@ -25,7 +25,9 @@ const ASSET_FOLDER_NAME = "Time Tracker Assets";
 
 const PREF_KEYS = {
     CLOCK_IN_REMINDER_TIME: 'clockInReminderTime',
-    SKIP_WEEKEND_AUTOMATION: 'skipWeekendAutomation'
+    SKIP_WEEKEND_AUTOMATION: 'skipWeekendAutomation',
+    CALENDAR_ENABLED: 'calendarEnabled',
+    CALENDAR_SETUP_DISMISSED: 'calendarSetupDismissed'
 };
 
 const LOG_KEYS = {
@@ -348,6 +350,55 @@ function processTimeEntry(userName, actionKey, timestamp) {
 }
 
 /**
+ * Check if Calendar API is available and authorized
+ * @returns {Object} Status object with success flag and message
+ */
+function checkCalendarAPIStatus() {
+  try {
+    // Try to access the Calendar service
+    Calendar.Events.list('primary', {
+      maxResults: 1,
+      timeMin: new Date().toISOString()
+    });
+    return {
+      success: true,
+      available: true,
+      message: 'Calendar API is available and authorized'
+    };
+  } catch (e) {
+    const errorMsg = e.toString();
+
+    // Check if it's a permission/authorization error
+    if (errorMsg.includes('Authorization') || errorMsg.includes('permission')) {
+      return {
+        success: true,
+        available: false,
+        needsAuth: true,
+        message: 'Calendar API needs authorization. Click "Enable Calendar" to grant access.'
+      };
+    }
+
+    // Check if the Calendar service is not enabled
+    if (errorMsg.includes('Calendar') || errorMsg.includes('not found') || errorMsg.includes('undefined')) {
+      return {
+        success: true,
+        available: false,
+        needsService: true,
+        message: 'Calendar API is not enabled. Please enable it in Apps Script project settings.'
+      };
+    }
+
+    // Unknown error
+    return {
+      success: false,
+      available: false,
+      error: errorMsg,
+      message: 'Error checking Calendar API status'
+    };
+  }
+}
+
+/**
  * [CORRECTED VERSION] Fetches today's events from the user's primary calendar.
  * This uses the Advanced Calendar Service to reliably get Google Meet links.
  * @returns {Array} A list of event objects for the frontend.
@@ -359,6 +410,16 @@ function getTodaysCalendarEvents() {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
+    // Check if Calendar API is available
+    if (typeof Calendar === 'undefined') {
+      Logger.log('Calendar API not available - Advanced Calendar service not enabled');
+      return {
+        success: false,
+        error: 'CALENDAR_NOT_ENABLED',
+        message: 'Calendar integration is not enabled. Enable it in Settings to see your events.'
+      };
+    }
+
     // Use the Advanced Calendar service (Calendar.*)
     const eventsList = Calendar.Events.list('primary', {
       timeMin: startOfDay.toISOString(),
@@ -368,13 +429,13 @@ function getTodaysCalendarEvents() {
     });
 
     if (!eventsList.items || eventsList.items.length === 0) {
-      return [];
+      return { success: true, events: [] };
     }
 
     // Filter out all-day events (they have a 'date' property instead of 'dateTime')
     const timedEvents = eventsList.items.filter(event => event.start.dateTime);
-    
-    return timedEvents.map(event => {
+
+    const events = timedEvents.map(event => {
       let gmeetLink = null;
       if (event.conferenceData && event.conferenceData.entryPoints) {
         const videoEntryPoint = event.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
@@ -382,7 +443,7 @@ function getTodaysCalendarEvents() {
           gmeetLink = videoEntryPoint.uri;
         }
       }
-      
+
       return {
         id: event.id,
         title: event.summary,
@@ -391,9 +452,36 @@ function getTodaysCalendarEvents() {
         gmeetLink: gmeetLink
       };
     });
+
+    return { success: true, events: events };
   } catch (e) {
     Logger.log(`Error fetching calendar events for user ${Session.getActiveUser().getEmail()}: ${e.toString()}\nStack: ${e.stack}`);
-    return [];
+
+    const errorMsg = e.toString();
+
+    // Handle authorization errors
+    if (errorMsg.includes('Authorization') || errorMsg.includes('permission')) {
+      return {
+        success: false,
+        error: 'CALENDAR_AUTH_REQUIRED',
+        message: 'Calendar access requires authorization. Please enable calendar integration in Settings.'
+      };
+    }
+
+    // Handle service not enabled
+    if (errorMsg.includes('Calendar') || errorMsg.includes('not found')) {
+      return {
+        success: false,
+        error: 'CALENDAR_NOT_ENABLED',
+        message: 'Calendar API is not enabled. Contact your administrator.'
+      };
+    }
+
+    return {
+      success: false,
+      error: 'CALENDAR_ERROR',
+      message: 'Unable to fetch calendar events'
+    };
   }
 }
 
