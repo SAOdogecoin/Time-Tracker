@@ -1059,9 +1059,6 @@
   .btn-secondary { background: var(--color-bg-hover); color: var(--color-text-primary); border: 1px solid var(--color-border); }
   .btn-primary { background: var(--color-brand); color: #fff; }
 
-  .telegram-group { display: flex; align-items: flex-end; gap: 8px; }
-  .telegram-group .form-group { flex: 1; }
-  #settings-test-telegram { height: 40px; }
   
   #admin-panels-container { position: fixed; top: 0; left: 0; z-index: 200; pointer-events: none; }
   .admin-panel {
@@ -1337,20 +1334,9 @@
         </div>
         <h3>User Settings</h3>
         <div class="admin-panel-content">
-            <div class="telegram-group">
-                <div class="form-group">
-                    <label for="settings-telegram-id">Telegram Chat ID</label>
-                    <input type="text" id="settings-telegram-id">
-                </div>
-                <button id="settings-test-telegram" class="panel-btn btn-secondary">Test</button>
-            </div>
             <div class="form-group-checkbox">
-                <label for="settings-enable-notifs">Enable Telegram Reminders</label>
-                <input type="checkbox" id="settings-enable-notifs">
-            </div>
-             <div class="form-group">
-                <label for="settings-clockin-reminder">Clock-In Reminder Time</label>
-                <input type="time" id="settings-clockin-reminder">
+                <label for="settings-skip-weekend-automation">Skip Automation on Weekends</label>
+                <input type="checkbox" id="settings-skip-weekend-automation">
             </div>
         </div>
     </div>
@@ -1535,10 +1521,7 @@ const App = {
                 menuContainer: document.getElementById('admin-menu-container'),
                 
                 settingsPanel: {
-                    telegramIdInput: document.getElementById('settings-telegram-id'),
-                    testTelegramBtn: document.getElementById('settings-test-telegram'),
-                    enableNotifsToggle: document.getElementById('settings-enable-notifs'),
-                    clockInReminderInput: document.getElementById('settings-clockin-reminder')
+                    skipWeekendAutomationToggle: document.getElementById('settings-skip-weekend-automation')
                 },
                  automationPanel: {
                     enableAutoClockOutToggle: document.getElementById('settings-enable-auto-clockout'),
@@ -1682,13 +1665,10 @@ const App = {
             adminPanelsContainer.querySelectorAll('.close-panel-btn').forEach(btn => {
                 btn.addEventListener('click', UI.hideAdminSlidePanel);
             });
-            
+
             this.dom.admin.addEntryPanel.saveBtn.addEventListener('click', () => this.handleAdminSave());
-            this.dom.admin.settingsPanel.testTelegramBtn.addEventListener('click', () => this.handleTestTelegram());
-            this.dom.admin.settingsPanel.telegramIdInput.addEventListener('change', (e) => this.handleSettingChange('telegramChatId', e.target.value));
-            this.dom.admin.settingsPanel.enableNotifsToggle.addEventListener('change', (e) => this.handleSettingChange('enableNotifications', e.target.checked.toString()));
-            this.dom.admin.settingsPanel.clockInReminderInput.addEventListener('change', (e) => this.handleSettingChange('clockInReminderTime', e.target.value));
-            
+            this.dom.admin.settingsPanel.skipWeekendAutomationToggle.addEventListener('change', (e) => this.handleSettingChange('skipWeekendAutomation', e.target.checked.toString()));
+
             this.dom.admin.automationPanel.enableAutoClockOutToggle.addEventListener('change', e => this.handleSettingChange('enableAutoClockOut', e.target.checked.toString()));
             this.dom.admin.automationPanel.autoClockOutDurationInput.addEventListener('change', e => this.handleSettingChange('autoClockOutDuration', e.target.value));
             this.dom.admin.automationPanel.enableAutoEndBreakToggle.addEventListener('change', e => this.handleSettingChange('enableAutoEndBreak', e.target.checked.toString()));
@@ -2040,18 +2020,6 @@ Object.assign(App, {
             UI.setLoading(false);
         }
     },
-    async handleTestTelegram() {
-        const btn = this.dom.admin.settingsPanel.testTelegramBtn;
-        const originalText = btn.textContent;
-        btn.textContent = '...'; btn.disabled = true;
-        const chatId = this.dom.admin.settingsPanel.telegramIdInput.value;
-        try {
-            const result = await API.sendTestTelegramMessage(chatId, this.state.currentUser.name);
-            if(result.success) { UI.showToast('Test message sent successfully!', 'success'); } 
-            else { throw new Error(result.error || 'Failed to send message.'); }
-        } catch (error) { UI.showToast(`Error: ${error.message}`, 'error'); } 
-        finally { btn.textContent = originalText; btn.disabled = false; }
-    },
     handlePictureUpload(event) {
         const file = event.target.files[0];
         if (!file || !file.type.startsWith('image/')) return;
@@ -2395,10 +2363,8 @@ Object.assign(UI, {
     },
     updateSettingsPanel(prefs) {
         const { settingsPanel, automationPanel } = App.dom.admin;
-        settingsPanel.telegramIdInput.value = prefs.telegramChatId || '';
-        settingsPanel.enableNotifsToggle.checked = prefs.enableNotifications !== 'false';
-        settingsPanel.clockInReminderInput.value = prefs.clockInReminderTime || '';
-        
+        settingsPanel.skipWeekendAutomationToggle.checked = prefs.skipWeekendAutomation === 'true';
+
         automationPanel.enableAutoClockOutToggle.checked = prefs.enableAutoClockOut === 'true';
         automationPanel.autoClockOutDurationInput.value = prefs.autoClockOutDuration || '8';
         automationPanel.enableAutoEndBreakToggle.checked = prefs.enableAutoEndBreak === 'true';
@@ -3603,8 +3569,6 @@ const API = {
     updateTimeEntry: (row, key, time) => API._run('updateTimeEntry', row, key, time),
     deleteTimeEntry: (row, key) => API._run('deleteTimeEntry', row, key),
     recalculateHoursForDate: (name, date) => API._run('recalculateHoursForDate', name, date),
-    sendTestTelegramMessage: (id, name) => API._run('sendTestTelegramMessage', id, name),
-    sendEightHourReminder: (name) => API._run('sendEightHourReminder', name),
     saveProfilePicture: (name, data, type) => API._run('saveProfilePicture', name, data, type),
     generateWeekSheet: (weeks) => API._run('generateWeekSheet', weeks),
     saveUserPreference: (name, key, val) => API._run('saveUserPreference', name, key, val),

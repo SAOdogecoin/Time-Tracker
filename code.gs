@@ -21,14 +21,11 @@ function isAdmin_() {
 
 const TEMPLATE_SHEET_NAME = "Template";
 const SCRIPT_TIMEZONE = Session.getScriptTimeZone();
-const ASSET_FOLDER_NAME = "Time Tracker Assets"; 
-const WEB_APP_URL = "https://script.google.com/a/macros/threecolts.com/s/AKfycbzrmUFqqLOvDfiMS79_oD4FuKlLBvl8JZSB8RMoxl1zCZS41Dz1gMKV0ucjp810h9nCQw/exec"; 
-const TELEGRAM_BOT_TOKEN = "7633801371:AAFwXY_niax_b5yYREnTuQBUg0KkgWRdNkM";
+const ASSET_FOLDER_NAME = "Time Tracker Assets";
 
 const PREF_KEYS = {
     CLOCK_IN_REMINDER_TIME: 'clockInReminderTime',
-    ENABLE_NOTIFICATIONS: 'enableNotifications',
-    ENABLE_EIGHT_HOUR_REMINDER: 'enableEightHourReminder'
+    SKIP_WEEKEND_AUTOMATION: 'skipWeekendAutomation'
 };
 
 const LOG_KEYS = {
@@ -60,88 +57,6 @@ function doGet(e) {
   }
 }
 
-function doPost(e) {
-  try {
-    if (!e || !e.postData || !e.postData.contents) return;
-    const contents = JSON.parse(e.postData.contents);
-
-    if (contents.callback_query) {
-      const callbackQuery = contents.callback_query;
-      const data = callbackQuery.data;
-      const chatId = callbackQuery.message.chat.id;
-      const messageId = callbackQuery.message.message_id;
-      const [action, userName] = data.split(':');
-
-      callTelegramApi_('answerCallbackQuery', { callback_query_id: callbackQuery.id });
-      
-      if (action === 'refresh') {
-        updateTelegramMessage_(chatId, messageId, userName, "Status refreshed.");
-      }
-    }
-    else if (contents.message && contents.message.text) {
-      const chatId = contents.message.chat.id;
-      const text = contents.message.text.trim().toLowerCase();
-      
-      if (text === '/start' || text === '/status') {
-        const user = findUserByChatId_(chatId);
-        if (user) {
-          sendDynamicTelegramNotification(chatId, user.name, "Here is your current time tracking status:");
-        } else {
-          const setupMessage = "Hello! This chat ID isn't linked to a user.\n\nTo link this chat, an Admin must go to the Time Tracker Web App, open the user menu in the top-right, and add this Chat ID for your user account:\n\n`" + chatId + "`";
-          callTelegramApi_('sendMessage', { chat_id: chatId, text: setupMessage, parse_mode: 'Markdown' });
-        }
-      }
-    }
-  } catch (err) {
-    Logger.log(`CRITICAL ERROR in doPost: ${err.stack}`);
-  }
-  return ContentService.createTextOutput("OK");
-}
-
-function setWebhook() {
-  if (!WEB_APP_URL || WEB_APP_URL === "YOUR_WEB_APP_URL") {
-    Browser.msgBox("ERROR: Please paste your new Web App URL into the WEB_APP_URL constant first.");
-    return;
-  }
-  const response = callTelegramApi_('setWebhook', { url: WEB_APP_URL, drop_pending_updates: true });
-  if (response && response.ok) {
-    Browser.msgBox(`Webhook set successfully to:\n${WEB_APP_URL}`);
-  } else {
-    Browser.msgBox(`Webhook setup failed: ${JSON.stringify(response)}`);
-  }
-}
-
-function callTelegramApi_(method, payload) {
-  if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "YOUR_TELEGRAM_BOT_TOKEN") {
-    Logger.log("CRITICAL ERROR: Telegram Bot Token is not set.");
-    return null;
-  }
-  const apiUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`;
-  const options = { method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true };
-  try {
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const responseCode = response.getResponseCode();
-    const responseBody = response.getContentText();
-    if (responseCode !== 200) {
-      Logger.log(`ERROR from Telegram API. Method: ${method}, Code: ${responseCode}, Body: ${responseBody}`);
-      return null;
-    }
-    return JSON.parse(responseBody);
-  } catch (e) {
-    Logger.log(`CRITICAL FAILURE in UrlFetchApp. Method: ${method}, Error: ${e.toString()}`);
-    return null;
-  }
-}
-
-function sendDynamicTelegramNotification(chatId, userName, initialMessage) {
-  const { text, reply_markup } = generateStatusMessageAndKeyboard_(userName, initialMessage);
-  callTelegramApi_('sendMessage', { chat_id: String(chatId), text: text, parse_mode: 'HTML', reply_markup: reply_markup, disable_web_page_preview: true });
-}
-
-function updateTelegramMessage_(chatId, messageId, userName, confirmationText = "") {
-    const { text, reply_markup } = generateStatusMessageAndKeyboard_(userName, confirmationText);
-    callTelegramApi_('editMessageText', { chat_id: chatId, message_id: messageId, text: text, parse_mode: 'HTML', reply_markup: reply_markup, disable_web_page_preview: true });
-}
 
 function getUserProfileData(name) {
   try {
@@ -193,9 +108,12 @@ function getUserProfileData(name) {
       activeLogKey = determineActiveLogKeyFromTimes(timeEntries);
       lastActionTimestamp = getLastActionTimestamp_(contextSheet, contextRow, activeLogKey);
       
+      // Calculate total seconds for today
       if (activeSheet && getSheetForDate_(today) && activeSheet.getSheetId() === getSheetForDate_(today).getSheetId()) {
+         // Active session is on today's sheet - calculate ongoing time
          totalSecondsToday = calculateCurrentTotalHoursSeconds_(contextSheet, contextRow);
       } else if (status === 'Offline') {
+         // User is offline - get completed hours from today's row
          const todaySheet = getSheetForDate_(today);
          const todayRow = todaySheet ? findTodaysRowForUser_(name, todaySheet) : null;
          if (todayRow) {
@@ -204,6 +122,12 @@ function getUserProfileData(name) {
                totalSecondsToday = todayHours * 3600;
             }
          }
+      } else if (activeSheet) {
+         // EDGE CASE: Active session started yesterday (e.g., clocked in at 11:50 PM, still working after midnight)
+         // Calculate time worked but attribute to the day the session started (yesterday's sheet)
+         // Display the ongoing time for status display purposes
+         totalSecondsToday = calculateCurrentTotalHoursSeconds_(activeSheet, activeRow);
+         Logger.log(`Midnight session edge case: ${name} has active session from previous day, showing ongoing time: ${(totalSecondsToday / 3600).toFixed(2)} hours`);
       }
     }
 
@@ -269,71 +193,8 @@ function getLastActionTimestamp_(sheet, row, activeLogKey) {
   }
 }
 
-function runHourlyChecks() {
-  Logger.log("Running hourly checks for notifications...");
-  const allUsersResult = getAllUsersStatus();
-  if (!allUsersResult.success) {
-    Logger.log("Failed to get user statuses for hourly check.");
-    return;
-  }
-
-  allUsersResult.users.forEach(user => {
-    try {
-      const prefs = getUserPreferences_(user.name);
-
-      if (prefs[PREF_KEYS.ENABLE_EIGHT_HOUR_REMINDER] === 'true' && prefs.telegramChatId) {
-        if (user.status === 'Working' && user.hoursWorked >= 8) {
-          const userKey = `eightHourReminder_${sanitizeKey_(user.name)}_${new Date().toISOString().slice(0, 10)}`;
-          if (!PropertiesService.getScriptProperties().getProperty(userKey)) {
-            const message = `🎉 <b>Daily Goal Met!</b>\nYou have now worked for 8 hours. Don't forget to clock out when you're done!`;
-            sendDynamicTelegramNotification(prefs.telegramChatId, user.name, message);
-            PropertiesService.getScriptProperties().setProperty(userKey, 'sent');
-            Logger.log(`SUCCESS: Sent 8-hour reminder to ${user.name}.`);
-          }
-        }
-      }
-
-      if (prefs[PREF_KEYS.ENABLE_NOTIFICATIONS] !== 'false' && prefs.telegramChatId) {
-        if (user.status === 'Working' && user.hoursWorked >= 10) {
-          const userKey = `clockOutReminder_${sanitizeKey_(user.name)}_${new Date().toISOString().slice(0, 10)}`;
-          if (!PropertiesService.getScriptProperties().getProperty(userKey)) {
-            const message = `<b>Clock-Out Reminder</b>\nIt looks like you've been clocked in for 10 hours or more. Did you forget to clock out?`;
-            sendDynamicTelegramNotification(prefs.telegramChatId, user.name, message);
-            PropertiesService.getScriptProperties().setProperty(userKey, 'sent');
-            Logger.log(`SUCCESS: Sent 10-hour safety net reminder to ${user.name}.`);
-          }
-        }
-      }
-    } catch (e) {
-      Logger.log(`ERROR checking user ${user.name}: ${e.toString()}`);
-    }
-  });
-  Logger.log("Hourly checks complete.");
-}
-
-function runDailyChecks() {
-  Logger.log("Running daily clock-in reminder checks...");
-  const allUsersResult = getAllUsersStatus();
-  if (!allUsersResult.success) return;
-
-  const now = new Date();
-  const currentTimeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
-  allUsersResult.users.forEach(user => {
-    const prefs = getUserPreferences_(user.name);
-    if (prefs[PREF_KEYS.ENABLE_NOTIFICATIONS] !== 'false' && prefs.telegramChatId) {
-      const reminderTime = prefs[PREF_KEYS.CLOCK_IN_REMINDER_TIME];
-      if (reminderTime && reminderTime === currentTimeStr && user.status === 'Offline') {
-         const hasClockedInToday = findTodaysRowForUser_(user.name) && user.hoursWorked > 0;
-         if (!hasClockedInToday) {
-           const message = `<b>Clock-In Reminder</b>\nIt's ${reminderTime}, your scheduled reminder time. Don't forget to clock in!`;
-           sendDynamicTelegramNotification(prefs.telegramChatId, user.name, message);
-         }
-      }
-    }
-  });
-  Logger.log("Daily checks complete.");
-}
+// Hourly and daily checks have been removed as they were Telegram-dependent
+// Users will receive in-app notifications instead when automation runs
 
 function getInitialLoadData(userName) {
   const result = { success: false, nameList: [], initialUserData: null, dynamicGreeting: null, error: null };
@@ -572,8 +433,14 @@ function getDynamicGreeting(userName) {
       if (month === holiday.month && date === holiday.date) {
         return { greeting: holiday.greeting, name: firstName };
       }
-      // Day before major holidays
-      if (month === holiday.month && date === holiday.date - 1) {
+
+      // Day before major holidays - properly handles month boundaries
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowMonth = tomorrow.getMonth();
+      const tomorrowDate = tomorrow.getDate();
+
+      if (tomorrowMonth === holiday.month && tomorrowDate === holiday.date) {
         if ([11, 0].includes(holiday.month) && [24, 25, 31, 1].includes(holiday.date)) {
           return { greeting: `${holiday.greeting} tomorrow! 🎉`, name: firstName };
         }
@@ -699,7 +566,6 @@ function getProfilePicDataUrlForFileId(fileId) {
 }
 function getOrCreateTargetSheet_() { const ss = SpreadsheetApp.getActiveSpreadsheet(); const date = new Date(); date.setHours(0, 0, 0, 0); const dayNum = date.getDay() || 7; date.setDate(date.getDate() + 4 - dayNum); const yearStart = new Date(date.getFullYear(), 0, 1); const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7); const targetSheetName = `Week${weekNo}`; let sheet = ss.getSheetByName(targetSheetName); if (!sheet) { const templateSheet = ss.getSheetByName(TEMPLATE_SHEET_NAME); if (!templateSheet) return null; sheet = ss.insertSheet(targetSheetName, ss.getNumSheets(), { template: templateSheet }); } return sheet; }
 function findNameDataForDate_(sheet, targetDate) { if (!sheet || !(targetDate instanceof Date)) return null; const targetMillis = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()); try { const dateRanges = sheet.getRangeList(DATE_NAME_MAPPING.map(m => `A${m.dateRow}`)).getRanges(); const dateValues = dateRanges.map(r => r.getValue()); const mapIndex = dateValues.findIndex(val => val instanceof Date && Date.UTC(val.getFullYear(), val.getMonth(), val.getDate()) === targetMillis); if (mapIndex === -1) return []; const { nameStartRow, nameEndRow } = DATE_NAME_MAPPING[mapIndex]; const nameVals = sheet.getRange(nameStartRow, 1, nameEndRow - nameStartRow + 1, 1).getValues(); return nameVals.map((r, i) => ({ name: r[0].trim(), row: nameStartRow + i })).filter(item => item.name); } catch (e) { return null; } }
-function findUserByChatId_(chatId) { const allUsersResult = getAllUsersStatus(); if (allUsersResult.success) { for (const user of allUsersResult.users) { const userPrefs = getUserPreferences_(user.name); if (String(userPrefs.telegramChatId).trim() === String(chatId).trim()) { return user; } } } return null; }
 function getTimeEntriesForUser_(sheet, row) { if (!sheet || !row) return null; try { const v = sheet.getRange(row, 2, 1, 6).getDisplayValues()[0]; return { clockIn: v[0]||null, breakOut: v[1]||null, breakIn: v[2]||null, lunchOut: v[3]||null, lunchIn: v[4]||null, clockOut: v[5]||null }; } catch(e) { return null; } }
 function determineStatusFromTimes(times) { const has = (key) => times && times[key] && String(times[key]).trim() !== "" && String(times[key]).trim() !== "--"; if (has('clockOut')) return 'Offline'; if (has('lunchIn')) return 'Working'; if (has('lunchOut')) return 'OnLunch'; if (has('breakIn')) return 'Working'; if (has('breakOut')) return 'OnBreak'; if (has('clockIn')) return 'Working'; return 'Offline'; }
 function calculateCurrentTotalHoursSeconds_(sheet, row) { if (!sheet || !row) return 0; try { const range = sheet.getRange(row, 2, 1, 6); const rawVals = range.getValues()[0]; const getMs = v => (v instanceof Date) ? v.getTime() : null; const clockInMs = getMs(rawVals[0]); if (!clockInMs) return 0; const status = determineStatusFromTimes(getTimeEntriesForUser_(sheet, row)); let effectiveEndMs; if (getMs(rawVals[5])) { effectiveEndMs = getMs(rawVals[5]); } else if (status === 'Working') { effectiveEndMs = new Date().getTime(); } else if (status === 'OnBreak') { effectiveEndMs = getMs(rawVals[1]); } else if (status === 'OnLunch') { effectiveEndMs = getMs(rawVals[3]); } else { effectiveEndMs = [getMs(rawVals[4]), getMs(rawVals[2]), clockInMs].find(t => t) || clockInMs; } let durationMs = effectiveEndMs - clockInMs; if (getMs(rawVals[1]) && getMs(rawVals[2])) { durationMs -= (getMs(rawVals[2]) - getMs(rawVals[1])); } if (getMs(rawVals[3]) && getMs(rawVals[4])) { durationMs -= (getMs(rawVals[4]) - getMs(rawVals[3])); } return Math.round(Math.max(0, durationMs) / 1000); } catch (e) { return 0; } }
@@ -760,6 +626,48 @@ function updateTimeEntry(row, actionKey, newTimeString) {
       }
     }
 
+    // VALIDATION: Check logical consistency of time entries
+    const allValues = sheet.getRange(targetRow, 2, 1, 6).getValues()[0];
+    const timeOrder = ['clockIn', 'breakOut', 'breakIn', 'lunchOut', 'lunchIn', 'clockOut'];
+    const columnIndexes = {
+      'clockIn': 0, 'breakOut': 1, 'breakIn': 2,
+      'lunchOut': 3, 'lunchIn': 4, 'clockOut': 5
+    };
+
+    // Create a temporary array with the new value inserted
+    const tempValues = [...allValues];
+    tempValues[columnIndexes[actionKey]] = newTime;
+
+    // Validate chronological order of non-empty entries
+    let lastTime = null;
+    for (let i = 0; i < timeOrder.length; i++) {
+      const currentValue = tempValues[columnIndexes[timeOrder[i]]];
+      if (currentValue instanceof Date) {
+        if (lastTime && currentValue.getTime() < lastTime.getTime()) {
+          throw new Error(
+            `Invalid time order: ${COLUMN_MAP[timeOrder[i]].name} (${currentValue.toLocaleString()}) cannot be before ${lastTimeName} (${lastTime.toLocaleString()})`
+          );
+        }
+        lastTime = currentValue;
+        var lastTimeName = COLUMN_MAP[timeOrder[i]].name;
+      }
+    }
+
+    // Validate: Break In must come after Break Out
+    if (tempValues[columnIndexes['breakOut']] instanceof Date &&
+        tempValues[columnIndexes['breakIn']] instanceof Date &&
+        tempValues[columnIndexes['breakIn']].getTime() <= tempValues[columnIndexes['breakOut']].getTime()) {
+      throw new Error('Break In must be after Break Out');
+    }
+
+    // Validate: Lunch In must come after Lunch Out
+    if (tempValues[columnIndexes['lunchOut']] instanceof Date &&
+        tempValues[columnIndexes['lunchIn']] instanceof Date &&
+        tempValues[columnIndexes['lunchIn']].getTime() <= tempValues[columnIndexes['lunchOut']].getTime()) {
+      throw new Error('Lunch In must be after Lunch Out');
+    }
+
+    // All validations passed - save the value
     sheet.getRange(targetRow, column.index).setValue(newTime).setNumberFormat(TIME_CELL_FORMAT);
     SpreadsheetApp.flush();
     recalculateHours(targetRow, sheet);
@@ -783,8 +691,6 @@ function findDateRowForRow_(row) {
 
 function deleteTimeEntry(row, actionKey) { if (!isAdmin_()) return { success: false, error: 'Permission denied.' }; try { const sheet = getOrCreateTargetSheet_(); if (!sheet) throw new Error("Could not access timesheet."); const column = COLUMN_MAP[actionKey]; if (!column) throw new Error("Invalid action key."); sheet.getRange(row, column.index).clearContent(); SpreadsheetApp.flush(); recalculateHours(row, sheet); return { success: true }; } catch (e) { return { success: false, error: e.message }; } }
 function recalculateHours(row, sheet) { try { const targetSheet = sheet || getOrCreateTargetSheet_(); if (!targetSheet) throw new Error("Could not access timesheet."); const totalHours = calculateCurrentTotalHoursSeconds_(targetSheet, row) / 3600; const decimalHoursFormat = "0.00"; targetSheet.getRange(row, COLUMN_MAP.hours.index).setValue(totalHours > 0.001 ? totalHours : "").setNumberFormat(decimalHoursFormat); SpreadsheetApp.flush(); return { success: true, newTotalHours: totalHours.toFixed(2) }; } catch(e) { return { success: false, error: e.message }; } }
-function sendTestTelegramMessage(chatId, userName) { if (!isAdmin_()) return { success: false, error: 'Permission denied.' }; if (!chatId || !userName) return { success: false, error: 'Chat ID or User Name is missing.' }; const message = `👋 Hello ${userName}! This is a test message from your Time Tracker app. If you received this, your Chat ID is working correctly.`; const result = callTelegramApi_('sendMessage', { chat_id: String(chatId), text: message }); return { success: result ? result.ok : false }; }
-function sendEightHourReminder(userName) { const user = findUserByName_(userName); if (!user) return; const prefs = getUserPreferences_(userName); if (prefs[PREF_KEYS.ENABLE_EIGHT_HOUR_REMINDER] === 'true' && prefs.telegramChatId) { const userKey = `eightHourReminder_${sanitizeKey_(userName)}_${new Date().toISOString().slice(0, 10)}`; if (!PropertiesService.getScriptProperties().getProperty(userKey)) { const message = `🎉 <b>Daily Goal Met!</b>\nYou have now worked for 8 hours today. Don't forget to clock out when you're done!`; sendDynamicTelegramNotification(prefs.telegramChatId, userName, message); PropertiesService.getScriptProperties().setProperty(userKey, 'sent'); } } }
 function saveProfilePicture(userName, base64Data, mimeType) { if (!isAdmin_()) return { success: false, error: 'Permission denied.' }; try { let folders = DriveApp.getFoldersByName(ASSET_FOLDER_NAME); let folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(ASSET_FOLDER_NAME); const sanitizedKey = sanitizeKey_(userName); if (!sanitizedKey) return { success: false, error: "Invalid user name." }; const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, `profile_${sanitizedKey}.png`); const propKey = `profilePic_name_${sanitizedKey}`; const oldFileId = PropertiesService.getScriptProperties().getProperty(propKey); if (oldFileId) { try { DriveApp.getFileById(oldFileId).setTrashed(true); } catch (e) {} } const newFile = folder.createFile(blob); PropertiesService.getScriptProperties().setProperty(propKey, newFile.getId()); return { success: true, fileId: newFile.getId() }; } catch (e) { return { success: false, error: e.message }; } }
 function findUserByName_(userName) { const allUsersResult = getAllUsersStatus(); if (allUsersResult.success) { return allUsersResult.users.find(user => user.name === userName); } return null; }
 function generateWeekSheet(weekNumber) {
@@ -1131,6 +1037,14 @@ function runAutomations() {
   const now = new Date();
   Logger.log(`========== AUTOMATION RUN START: ${now.toLocaleString()} ==========`);
 
+  // Check if today is a weekend (0 = Sunday, 6 = Saturday)
+  const dayOfWeek = now.getDay();
+  const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+  if (isWeekend) {
+    Logger.log(`AUTOMATION: Today is a weekend (day ${dayOfWeek}). Checking user preferences for weekend automation...`);
+  }
+
   const allUsersResult = getAllUsersStatus();
   if (!allUsersResult.success) {
     Logger.log("AUTOMATION: Failed to get user statuses. Aborting.");
@@ -1145,10 +1059,16 @@ function runAutomations() {
       const prefs = getUserPreferences_(user.name);
       if (!prefs) return;
 
+      // Skip automation on weekends if user has enabled skipWeekendAutomation
+      if (isWeekend && prefs[PREF_KEYS.SKIP_WEEKEND_AUTOMATION] === 'true') {
+        Logger.log(`AUTOMATION: Skipping ${user.name} - weekend automation disabled by user preference`);
+        return;
+      }
+
       const profileResult = getUserProfileData(user.name);
       if (!profileResult.success) return;
       const profileData = profileResult.data;
-      
+
       handleAutoClockOut_(profileData, prefs, todayStr);
       handleAutoEndTimers_(profileData, prefs);
       handleTimedActions_(profileData, prefs, now);
