@@ -1,0 +1,3379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Tracker</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<style>
+  :root {
+      --font-primary: 'Inter', sans-serif;
+      --radius-md: 8px; 
+      --radius-lg: 16px;
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --transition-base: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      
+      /* Light Theme (Default) */
+      --color-bg: #F8F9FA;
+      --color-surface: #FFFFFF;
+      --color-surface-secondary: #F0F2F5; 
+      --color-border: rgba(0, 0, 0, 0.08);
+      --color-text-primary: #18181B;
+      --color-text-secondary: #71717A;
+      --color-brand: #0071dc; 
+      --color-bg-hover: rgba(0, 0, 0, 0.04);
+      --background-image: linear-gradient(180deg, #FFFFFF 0%, #F8F9FA 100%);
+      --color-disabled: #cbd5e1;
+      --color-sidebar-bg: #FFFFFF;
+
+      /* Status Colors */
+      --color-green: #16A34A;
+      --color-green-hover: #15803d;
+      --color-orange: #f59e0b;
+      --color-orange-hover: #d97706;
+      --color-red: #E11D48;
+      --color-red-hover: #be123c;
+  }
+  
+  body[data-theme="dark"] {
+      /* Dark Theme */
+      --color-bg: #111113;
+      --color-surface: #18181B;
+      --color-surface-secondary: #242526;
+      --color-border: rgba(255, 255, 255, 0.1);
+      --color-text-primary: #F4F4F5;
+      --color-text-secondary: #A1A1AA;
+      --color-bg-hover: rgba(255, 255, 255, 0.06);
+      --background-image: linear-gradient(180deg, #18181B 0%, #111113 100%);
+      --color-disabled: #475569;
+      --color-sidebar-bg: #18181B;
+  }
+
+  /* Background image text adjustments - for dashboard header AND topbar elements over background */
+  /* Dashboard text: prefer white for maximum readability */
+  body.has-custom-bg .greeting-title,
+  body.has-custom-bg .current-date,
+  body.has-custom-bg .main-time-counter,
+  body.has-custom-bg .current-status-text {
+      color: #FFFFFF !important;
+  }
+  body.has-custom-bg .current-date {
+      color: #F0F0F0 !important;
+  }
+
+  /* Dark center region: white text for dashboard (already white above) */
+  body.has-custom-bg.dark-bg .greeting-title,
+  body.has-custom-bg.dark-bg .current-date,
+  body.has-custom-bg.dark-bg .main-time-counter,
+  body.has-custom-bg.dark-bg .current-status-text {
+      color: #F4F4F5 !important;
+  }
+
+  /* Topbar elements: always white when background is present */
+  body.has-custom-bg .admin-panel-trigger,
+  body.has-custom-bg .admin-panel-trigger span,
+  body.has-custom-bg #customize-trigger,
+  body.has-custom-bg #customize-trigger .icon {
+      color: #FFFFFF !important;
+  }
+
+  /* Disable status tag color coding when background is present */
+  body.has-custom-bg .status-text-working,
+  body.has-custom-bg .status-text-break,
+  body.has-custom-bg .status-text-offline {
+      color: inherit !important;
+  }
+
+  /* Base & Layout */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-family: var(--font-primary); -webkit-font-smoothing: antialiased; }
+  body {
+      background-color: var(--color-bg);
+      background-image: var(--background-image);
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      color: var(--color-text-primary);
+      font-size: 12.6px; /* 90% of 14px */
+      overflow: hidden;
+      height: 100vh;
+      transition: background-image 0.5s, background-color 0.3s, color 0.3s;
+      display: flex;
+      justify-content: center;
+  }
+  
+  /* Remove the semi-transparent overlay - backgrounds now show directly */
+
+  #loading-indicator { position: fixed; inset: 0; background: rgba(255, 255, 255, 0.7); display: flex; align-items: center; justify-content: center; z-index: 9999; opacity: 0; visibility: hidden; transition: opacity 0.2s; }
+  body[data-theme="dark"] #loading-indicator { background: rgba(2, 6, 23, 0.7); }
+  #loading-indicator.show { opacity: 1; visibility: visible; }
+  .loading-spinner { width: 32px; height: 32px; border: 3px solid var(--color-border); border-top-color: var(--color-brand); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .app-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: relative;
+    width: 100%;
+  }
+  .dashboard-content { flex: 1; overflow-y: auto; padding: 21px 43px; position: relative; } /* 90% of 24px/48px */
+  .main-content-wrapper { width: 100%; max-width: 540px; margin: 0 auto; } /* 90% of 600px */
+
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } } /* 90% of 20px */
+
+  .dashboard-header { margin-bottom: 21px; animation: fadeInUp 0.5s ease-out both; } /* 90% of 24px */
+  .greeting-title { font-size: 28.8px; font-weight: 600; color: var(--color-text-primary); } /* 90% of 32px */
+  .current-date { font-size: 14.4px; font-weight: 500; color: var(--color-text-secondary); } /* 90% of 16px */
+
+  .main-time-counter { font-size: 6.75rem; font-weight: 700; line-height: 1; color: var(--color-text-primary); margin-bottom: 7px; font-variant-numeric: tabular-nums; animation: fadeInUp 0.5s 0.1s ease-out both; } /* 90% of 7.5rem/8px */
+  .current-status-text { font-size: 0.99rem; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 28.8px; text-align: left; animation: fadeInUp 0.5s 0.2s ease-out both;} /* 90% of 1.1rem/32px */
+
+  .status-text-working { color: var(--color-green); }
+  .status-text-break { color: var(--color-orange); }
+  .status-text-offline { color: var(--color-text-secondary); }
+  .status-text-warning { color: var(--color-orange); }
+
+  .main-action-button-container { min-height: 64.8px; margin-bottom: 43.2px; position: relative; animation: fadeInUp 0.5s 0.3s ease-out both; } /* 90% of 72px/48px */
+  .main-action-button { height: 54px; padding: 0 36px; border-radius: 99px; font-size: 18px; font-weight: 600; border: none; position: absolute; transition: all 0.25s ease; color: #fff; cursor: pointer; } /* 90% of 60px/40px/20px */
+  .main-action-button:disabled { background-color: var(--color-disabled); cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+  
+  .main-action-button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+
+  .btn-green, .btn-orange, .btn-red { background-color: var(--color-green); }
+  .btn-green:hover:not(:disabled) { background-color: var(--color-green-hover); }
+  .btn-orange { background-color: var(--color-orange); }
+  .btn-orange:hover:not(:disabled) { background-color: var(--color-orange-hover); }
+  .btn-red { background-color: var(--color-red); }
+  .btn-red:hover:not(:disabled) { background-color: var(--color-red-hover); }
+  
+  .dashboard-widgets-grid { display: grid; grid-template-columns: 1fr; grid-auto-rows: min-content; gap: 21.6px; animation: fadeInUp 0.5s 0.4s ease-out both;} /* 90% of 24px */
+
+  .top-bar {
+    padding: 10.8px 21.6px; /* 90% of 12px/24px */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 950;
+  }
+
+  /* Topbar gradient shadow when background is present */
+  body.has-custom-bg .top-bar::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.08) 40%, transparent 100%);
+    pointer-events: none;
+    z-index: -1;
+  }
+  .top-bar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .top-bar-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--color-border); background: var(--color-surface); cursor: pointer; color: var(--color-text-primary); transition: background-color 0.2s; }
+  .top-bar-btn:hover { background: var(--color-bg-hover); }
+
+  /* Remove circle from customize trigger */
+  #customize-trigger {
+    border: none;
+    background: transparent;
+    width: auto;
+    height: auto;
+  }
+  #customize-trigger:hover {
+    background: transparent;
+    opacity: 0.7;
+  }
+  
+  .admin-panel-trigger {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      padding: 0 16px;
+      border-radius: var(--radius-md);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--color-text-primary);
+      transition: background-color 0.2s;
+      font-weight: 600;
+      font-size: 14px;
+  }
+  .admin-panel-trigger:hover {
+      background: var(--color-bg-hover);
+  }
+
+  #user-menu-trigger {
+      background: transparent;
+      border: none;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+  }
+  
+  .user-menu-container { position: relative; top: 0; right: 0; }
+  .profile-pic { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background-color: var(--color-border); }
+
+  /* Loading state for images */
+  .profile-pic.loading,
+  .background-card.loading {
+    position: relative;
+    overflow: hidden;
+  }
+  .profile-pic.loading::after,
+  .background-card.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    to { left: 100%; }
+  }
+
+  #user-menu-pic {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .popup-menu { position: fixed; z-index: 200; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 260px; opacity: 0; visibility: hidden; transform: scale(0.95) translateY(-10px); transition: all 0.15s ease-out; transform-origin: top; overflow: hidden;}
+  .popup-menu#admin-panel-popup { transform-origin: top left; padding: 6px; }
+  .popup-menu#user-actions-popup {
+      transform-origin: top right;
+      width: 340px;
+      padding: 0;
+      background-color: var(--color-surface-secondary);
+      border: none;
+      box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+  }
+  .popup-menu.show { opacity: 1; visibility: visible; transform: scale(1) translateY(0); }
+  .popup-section { padding: 4px 0; border-bottom: 1px solid var(--color-border); }
+  .popup-section:last-child { border-bottom: none; }
+  .popup-item { padding: 10px 12px; font-size: 14px; font-weight: 500; border-radius: var(--radius-md); display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background-color 0.2s; }
+  .popup-item:hover { background: var(--color-bg-hover); }
+  .popup-item label { flex: 1; }
+  
+  .user-popup-profile-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 20px 16px;
+      position: relative;
+  }
+  .user-popup-pic-wrapper { position: relative; margin-bottom: 16px; }
+  .user-popup-pic { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; background-color: var(--color-border); }
+  .change-picture-btn { position: absolute; bottom: 0; right: 0; width: 32px; height: 32px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .change-picture-btn:hover { background-color: var(--color-bg-hover); }
+  .change-picture-btn .icon { color: #3b82f6; }
+  .user-popup-name { font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
+  
+  .theme-toggle-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--color-text-secondary);
+      transition: background-color 0.2s, color 0.2s;
+  }
+  .theme-toggle-btn:hover {
+      background-color: var(--color-bg-hover);
+      color: var(--color-text-primary);
+  }
+
+  .popup-search-wrapper {
+      padding: 0 16px 12px;
+      background-color: var(--color-surface-secondary);
+      flex-shrink: 0;
+  }
+  #user-search-input {
+      width: 100%;
+      height: 36px;
+      border-radius: 99px;
+      border: 1px solid var(--color-border);
+      background-color: var(--color-surface);
+      padding: 0 16px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+  }
+  #user-search-input:focus {
+      outline: 2px solid var(--color-brand);
+      outline-offset: 1px;
+      border-color: transparent;
+  }
+
+  .popup-user-list {
+      max-height: 280px;
+      overflow-y: auto;
+      background-color: var(--color-surface);
+      border-radius: var(--radius-lg);
+      margin: 0 8px 8px;
+      padding: 8px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      flex: 1;
+  }
+  .popup-user-item { 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+      gap: 12px; 
+      padding: 10px; 
+      border-radius: var(--radius-md); 
+      cursor: pointer; 
+      font-weight: 500;
+  }
+  .popup-user-item:hover { background-color: var(--color-bg-hover); }
+  .popup-user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      min-width: 0;
+  }
+  .popup-user-info span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+  }
+  .popup-user-item .profile-pic { width: 32px; height: 32px; }
+
+  .popup-user-list::-webkit-scrollbar { width: 8px; }
+  .popup-user-list::-webkit-scrollbar-track { background: transparent; }
+  .popup-user-list::-webkit-scrollbar-thumb {
+      background: var(--color-text-secondary);
+      border-radius: 99px;
+      opacity: 0.5;
+  }
+  .popup-user-list::-webkit-scrollbar-thumb:hover {
+      background: var(--color-text-primary);
+  }
+
+  .admin-menu-sidebar { width: 320px; flex-shrink: 0; background: var(--color-sidebar-bg); border-left: 1px solid var(--color-border); display: flex; flex-direction: column; height: 100vh; position: fixed; top: 0; right: 0; z-index: 2000; transform: translateX(100%); transition: transform var(--transition-base); box-shadow: -10px 0 25px -10px rgba(0,0,0,0.1); }
+  .admin-menu-sidebar.is-visible { transform: translateX(0); }
+  .admin-menu-sidebar.from-left { right: auto; left: 0; transform: translateX(-100%); border-left: none; border-right: 1px solid var(--color-border); }
+  .admin-menu-sidebar.from-left.is-visible { transform: translateX(0); }
+
+  .team-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px 12px 24px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+  .team-sidebar-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .close-sidebar-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+  }
+  .close-sidebar-btn:hover {
+    background-color: var(--color-bg-hover);
+  }
+  .team-list-container {
+    padding: 8px;
+    overflow-y: auto;
+    flex-grow: 1;
+  }
+
+  .sidebar-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 1999; opacity: 0; visibility: hidden; transition: opacity var(--transition-base); }
+  .sidebar-backdrop.is-visible { opacity: 1; visibility: visible; }
+  .status-pill { flex-shrink: 0; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; text-align: center; color: #fff; }
+  .status-working { background-color: var(--color-green); }
+  .status-break { background-color: var(--color-orange); }
+  .status-offline { background-color: var(--color-text-secondary); }
+  
+  .widget-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 24px; position: relative; transition: transform 0.3s ease, box-shadow 0.3s ease; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+  .widget-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+  .widget-card.log-widget {
+      background: var(--color-surface-secondary);
+      padding: 20px 8px 8px;
+      box-shadow: none;
+      border: none;
+      border-radius: 20px;
+  }
+   .widget-card.log-widget:hover {
+      transform: none;
+      box-shadow: none;
+  }
+
+  .widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .log-widget .widget-header {
+      padding: 0 12px;
+      margin-bottom: 12px;
+  }
+  .widget-header h3 { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+  .gsheet-link { color: var(--color-text-secondary); text-decoration: none; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: color 0.2s; }
+  .gsheet-link:hover { color: var(--color-brand); }
+  
+  #time-log-container { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 8px; 
+      background-color: var(--color-surface);
+      border-radius: 12px;
+      padding: 8px;
+  }
+  .log-item { display: flex; align-items: center; justify-content: space-between; transition: background-color 0.2s; border-radius: var(--radius-md); padding: 8px; }
+  .log-item:hover { background-color: var(--color-bg-hover); }
+  .log-item-info { display: flex; align-items: center; gap: 12px; }
+  .log-icon-wrapper { width: 32px; height: 32px; border-radius: 50%; background-color: var(--color-bg); display: flex; align-items: center; justify-content: center; }
+  .log-label { font-weight: 500; color: var(--color-text-primary); }
+  .log-time { font-size: 12px; color: var(--color-text-secondary); }
+  .log-duration { font-size: 12px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; margin-left: 8px; }
+  .admin-actions { display: none; }
+  .is-admin .admin-actions { display: flex; align-items: center; gap: 8px; }
+  .admin-action-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 50%; transition: background-color 0.2s; }
+  .admin-action-btn:hover { background-color: var(--color-bg-hover); }
+  
+  .icon { display: inline-block; width: 20px; height: 20px; background-color: currentColor; mask-size: contain; -webkit-mask-size: contain; mask-repeat: no-repeat; -webkit-mask-repeat: no-repeat; mask-position: center; -webkit-mask-position: center; }
+  [data-icon="users"], [data-icon="x"], [data-icon="sun"], [data-icon="moon"], [data-icon="external-link"], [data-icon="login"], [data-icon="logout"], [data-icon="coffee"], [data-icon="utensils"], [data-icon="edit"], [data-icon="trash"], [data-icon="plus"], [data-icon="sync"], [data-icon="user-cog"], [data-icon="image"], [data-icon="sheet"], [data-icon="automation"], [data-icon="history"], [data-icon="camera"], [data-icon="shield"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"%3E%3C/path%3E%3Ccircle cx="9" cy="7" r="4"%3E%3C/circle%3E%3Cpath d="M23 21v-2a4 4 0 0 0-3-3.87"%3E%3C/path%3E%3Cpath d="M16 3.13a4 4 0 0 1 0 7.75"%3E%3C/path%3E%3C/svg%3E'); }
+  [data-icon="x"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cline x1="18" y1="6" x2="6" y2="18"%3E%3C/line%3E%3Cline x1="6" y1="6" x2="18" y2="18"%3E%3C/line%3E%3C/svg%3E'); }
+  [data-icon="sun"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Ccircle cx="12" cy="12" r="5"%3E%3C/circle%3E%3Cline x1="12" y1="1" x2="12" y2="3"%3E%3C/line%3E%3Cline x1="12" y1="21" x2="12" y2="23"%3E%3C/line%3E%3Cline x1="4.22" y1="4.22" x2="5.64" y2="5.64"%3E%3C/line%3E%3Cline x1="18.36" y1="18.36" x2="19.78" y2="19.78"%3E%3C/line%3E%3Cline x1="1" y1="12" x2="3" y2="12"%3E%3C/line%3E%3Cline x1="21" y1="12" x2="23" y2="12"%3E%3C/line%3E%3Cline x1="4.22" y1="19.78" x2="5.64" y2="18.36"%3E%3C/line%3E%3Cline x1="18.36" y1="5.64" x2="19.78" y2="4.22"%3E%3C/line%3E%3C/svg%3E'); }
+  [data-icon="moon"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"%3E%3C/path%3E%3C/svg%3E'); }
+  [data-icon="camera"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"%3E%3C/path%3E%3Ccircle cx="12" cy="13" r="4"%3E%3C/circle%3E%3C/svg%3E'); }
+  [data-icon="external-link"] { width: 14px; height: 14px; -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"%3E%3C/path%3E%3Cpolyline points="15 3 21 3 21 9"%3E%3C/polyline%3E%3Cline x1="10" y1="14" x2="21" y2="3"%3E%3C/line%3E%3C/svg%3E'); }
+  [data-icon="login"] { color: var(--color-green); -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"%3E%3C/path%3E%3Cpolyline points="10 17 15 12 10 7"%3E%3C/polyline%3E%3Cline x1="15" y1="12" x2="3" y2="12"%3E%3C/line%3E%3C/svg%3E'); }
+  [data-icon="logout"] { color: var(--color-red); -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"%3E%3C/path%3E%3Cpolyline points="16 17 21 12 16 7"%3E%3C/polyline%3E%3Cline x1="21" y1="12" x2="9" y2="12"%3E%3C/line%3E%3C/svg%3E'); }
+  [data-icon="coffee"] { color: var(--color-orange); -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M18 8h1a4 4 0 0 1 0 8h-1"%3E%3C/path%3E%3Cpath d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"%3E%3C/path%3E%3Cline x1="6" y1="1" x2="6" y2="4"%3E%3C/line%3E%3Cline x1="10" y1="1" x2="10" y2="4"%3E%3C/line%3E%3Cline x1="14" y1="1" x2="14" y2="4"%3E%3C/line%3E%3C/svg%3E'); }
+  [data-icon="utensils"] { color: var(--color-orange); -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"%3E%3C/path%3E%3Cpath d="M7 2v20"%3E%3C/path%3E%3Cpath d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3z"%3E%3C/path%3E%3C/svg%3E'); }
+  [data-icon="edit"] { width: 16px; height: 16px; color: var(--color-text-secondary); -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"%3E%3C/path%3E%3Cpath d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"%3E%3C/path%3E%3C/svg%3E'); }
+  [data-icon="trash"] { width: 16px; height: 16px; color: var(--color-text-secondary); -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpolyline points="3 6 5 6 21 6"%3E%3C/polyline%3E%3Cpath d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"%3E%3C/path%3E%3C/svg%3E'); }
+  [data-icon="plus"] { width: 16px; height: 16px; -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cline x1="12" y1="5" x2="12" y2="19"%3E%3C/line%3E%3Cline x1="5" y1="12" x2="19" y2="12"%3E%3C/line%3E%3C/svg%3E'); }
+  [data-icon="sync"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpolyline points="23 4 23 10 17 10"%3E%3C/polyline%3E%3Cpolyline points="1 20 1 14 7 14"%3E%3C/polyline%3E%3Cpath d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"%3E%3C/path%3E%3C/svg%3E'); }
+  [data-icon="user-cog"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"%3E%3C/path%3E%3Ccircle cx="9" cy="7" r="4"%3E%3C/circle%3E%3Ccircle cx="19" cy="11" r="2"%3E%3C/circle%3E%3Cpath d="M19 8v1"%3E%3C/path%3E%3Cpath d="M19 13v1"%3E%3C/path%3E%3Cpath d="m21.6 9.5-.87.5"%3E%3C/path%3E%3Cpath d="m17.27 12-.87.5"%3E%3C/path%3E%3Cpath d="m21.6 12.5-.87-.5"%3E%3C/path%3E%3Cpath d="m17.27 15-.87-.5"%3E%3C/path%3E%3C/svg%3E'); }
+  [data-icon="image"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect x="3" y="3" width="18" height="18" rx="2" ry="2"%3E%3C/rect%3E%3Ccircle cx="8.5" cy="8.5" r="1.5"%3E%3C/circle%3E%3Cpolyline points="21 15 16 10 5 21"%3E%3C/polyline%3E%3C/svg%3E'); }
+  [data-icon="sheet"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"%3E%3C/path%3E%3Cpolyline points="14 2 14 8 20 8"%3E%3C/polyline%3E%3Cline x1="16" y1="13" x2="8" y2="13"%3E%3C/line%3E%3Cline x1="16" y1="17" x2="8" y2="17"%3E%3C/line%3E%3Cpolyline points="10 9 9 9 8 9"%3E%3C/polyline%3E%3C/svg%3E');}
+  [data-icon="automation"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M12 20V10"%3E%3C/path%3E%3Cpath d="M12 10l-2.5 2.5"%3E%3C/path%3E%3Cpath d="M12 10l2.5 2.5"%3E%3C/path%3E%3Cpath d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"%3E%3C/path%3E%3Cpath d="M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"%3E%3C/path%3E%3C/svg%3E');}
+  [data-icon="history"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"%3E%3C/path%3E%3Cpath d="M12 8v4l2 2"%3E%3C/path%3E%3C/svg%3E');}
+  [data-icon="shield"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"%3E%3C/path%3E%3C/svg%3E');}
+  [data-icon="palette"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Ccircle cx="13.5" cy="6.5" r=".5"%3E%3C/circle%3E%3Ccircle cx="17.5" cy="10.5" r=".5"%3E%3C/circle%3E%3Ccircle cx="8.5" cy="7.5" r=".5"%3E%3C/circle%3E%3Ccircle cx="6.5" cy="12.5" r=".5"%3E%3C/circle%3E%3Cpath d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"%3E%3C/path%3E%3C/svg%3E');}
+
+/* ===== START: CUSTOMIZATION PANEL CSS ===== */
+  .customize-sidebar {
+    width: 380px;
+    flex-shrink: 0;
+    background: var(--color-surface-secondary);
+    border-left: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 2000;
+    transform: translateX(100%);
+    transition: transform var(--transition-base);
+    box-shadow: -10px 0 25px -10px rgba(0,0,0,0.1);
+  }
+  .customize-sidebar.is-visible { transform: translateX(0); }
+
+  /* Desktop: Make it a popup instead of sidebar */
+  @media (min-width: 769px) {
+    .customize-sidebar {
+      width: 420px;
+      height: auto;
+      max-height: 80vh;
+      top: auto;
+      right: 24px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.25);
+      transform: scale(0.95) translateY(-10px);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.15s ease-out;
+      transform-origin: top right;
+    }
+    .customize-sidebar.is-visible {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+      visibility: visible;
+    }
+    .customize-header {
+       padding: 24px 24px 12px;
+    }
+  }
+
+  .customize-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px 12px 24px;
+    flex-shrink: 0;
+  }
+  .customize-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .customize-content {
+    padding: 0 8px 8px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+
+  .customize-content-inner {
+    background-color: var(--color-surface);
+    border-radius: 12px;
+    padding: 24px;
+    overflow-y: auto;
+    width: 100%;
+    flex: 1;
+  }
+
+  /* Pill-only scrollbar for customization panel */
+  .customize-content-inner::-webkit-scrollbar {
+    width: 8px;
+  }
+  .customize-content-inner::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .customize-content-inner::-webkit-scrollbar-thumb {
+    background: var(--color-text-secondary);
+    border-radius: 99px;
+    opacity: 0.5;
+  }
+  .customize-content-inner::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-primary);
+  }
+
+  .customize-section {
+    margin-bottom: 32px;
+  }
+  .customize-section:last-child {
+    margin-bottom: 0;
+  }
+  .customize-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Theme Cards Grid - Material You style */
+  .theme-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .theme-card {
+    aspect-ratio: 1;
+    border-radius: 16px;
+    border: 2px solid var(--color-border);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+  }
+  .theme-card:hover {
+    border-color: var(--color-text-secondary);
+    transform: scale(1.05);
+  }
+  .theme-card.active {
+    border-color: var(--color-text-primary);
+    border-width: 3px;
+  }
+  .theme-card.active::after {
+    content: '✓';
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: var(--color-text-primary);
+    color: var(--color-surface);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+  }
+
+  .theme-split-circle {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+  }
+
+  .circle-top {
+    height: 50%;
+    width: 100%;
+  }
+
+  .circle-bottom {
+    height: 50%;
+    width: 100%;
+    display: flex;
+  }
+
+  .circle-bottom-left {
+    width: 50%;
+    height: 100%;
+  }
+
+  .circle-bottom-right {
+    width: 50%;
+    height: 100%;
+  }
+
+  /* Background Section */
+  .background-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .background-card {
+    aspect-ratio: 16/10;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--color-border);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    background: var(--color-bg);
+    background-size: cover;
+    background-position: center;
+  }
+  .background-card:hover {
+    border-color: var(--color-brand);
+    transform: scale(1.02);
+  }
+  .background-card.active {
+    border-color: var(--color-brand);
+    border-width: 3px;
+  }
+  .background-card.active::after {
+    content: '✓';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--color-brand);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  .background-card .delete-bg-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  /* Light theme delete button with white background */
+  body[data-theme="light"] .background-card .delete-bg-btn {
+    background: rgba(255, 255, 255, 0.9);
+    color: black;
+  }
+  .background-card:hover .delete-bg-btn {
+    display: flex;
+  }
+  .background-card .delete-bg-btn:hover {
+    background: rgba(220, 38, 38, 0.9);
+    transform: scale(1.1);
+  }
+  body[data-theme="light"] .background-card .delete-bg-btn:hover {
+    color: white;
+  }
+  .background-card .delete-bg-btn .icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .background-card.upload-card,
+  .background-card.default-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .background-card.upload-card {
+    background: var(--color-surface-secondary);
+  }
+  .background-card.default-card {
+    background: var(--color-text-primary);
+  }
+  .background-card.upload-card .icon {
+    width: 32px;
+    height: 32px;
+    color: var(--color-text-secondary);
+  }
+  .background-card.default-card .icon {
+    width: 32px;
+    height: 32px;
+    color: var(--color-surface);
+  }
+  .background-card.upload-card span,
+  .background-card.default-card span {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .background-card.upload-card span {
+    color: var(--color-text-secondary);
+  }
+  .background-card.default-card span {
+    color: var(--color-surface);
+  }
+
+  /* Default theme uses reverse mode's text color */
+  body[data-theme="light"][data-theme-id="default"] .background-card.default-card {
+    background: #F4F4F5;
+  }
+  body[data-theme="light"][data-theme-id="default"] .background-card.default-card .icon,
+  body[data-theme="light"][data-theme-id="default"] .background-card.default-card span {
+    color: #18181B;
+  }
+  body[data-theme="dark"][data-theme-id="default"] .background-card.default-card {
+    background: #18181B;
+  }
+  body[data-theme="dark"][data-theme-id="default"] .background-card.default-card .icon,
+  body[data-theme="dark"][data-theme-id="default"] .background-card.default-card span {
+    color: #F4F4F5;
+  }
+
+  /* Predefined background label */
+  .background-card .bg-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .background-card:hover .bg-label {
+    opacity: 1;
+  }
+
+  .reset-btn {
+    width: 100%;
+    height: 40px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-top: 12px;
+  }
+  .reset-btn:hover {
+    background: var(--color-bg-hover);
+  }
+  /* ===== END: CUSTOMIZATION PANEL CSS ===== */
+
+  /* ===== START: ANNOUNCEMENT PILL CSS ===== */
+  .announcement-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--color-surface-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 20px;
+      padding: 6px 12px 6px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      margin-right: 8px;
+      max-width: 320px;
+      transition: all 0.2s;
+  }
+
+  .announcement-pill:hover {
+      background: var(--color-bg-hover);
+  }
+
+  #announcement-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      min-width: 0;
+  }
+
+  #announcement-gmeet-btn {
+      background-color: var(--color-brand);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 12px;
+      transition: background-color 0.2s;
+      flex-shrink: 0;
+  }
+
+  #announcement-gmeet-btn:hover {
+      background-color: #005bb5;
+  }
+
+  #announcement-close-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: var(--color-text-secondary);
+      opacity: 0.7;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.2s;
+  }
+
+  #announcement-close-btn:hover {
+      opacity: 1;
+  }
+  /* ===== END: ANNOUNCEMENT PILL CSS ===== */
+  
+  .form-group { display: flex; flex-direction: column; }
+  .form-group label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .form-group input, .form-group select { width: 100%; height: 40px; border: 1px solid var(--color-border); background: var(--color-bg); border-radius: var(--radius-md); padding: 0 12px; font-size: 14px; color: var(--color-text-primary); }
+  .form-group-checkbox { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+  
+  .panel-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+  .panel-btn { height: 36px; border: none; border-radius: var(--radius-md); padding: 0 16px; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+  .btn-secondary { background: var(--color-bg-hover); color: var(--color-text-primary); border: 1px solid var(--color-border); }
+  .btn-primary { background: var(--color-brand); color: #fff; }
+
+  .telegram-group { display: flex; align-items: flex-end; gap: 8px; }
+  .telegram-group .form-group { flex: 1; }
+  #settings-test-telegram { height: 40px; }
+  
+  #admin-panels-container { position: fixed; top: 0; left: 0; z-index: 200; pointer-events: none; }
+  .admin-panel {
+      display: none;
+      position: absolute;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 24px;
+      width: 320px;
+      pointer-events: auto;
+      animation: fadeIn 0.2s ease-out;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+  .admin-panel.show { display: block; }
+  .admin-panel-header { display: none; }
+  .admin-panel.is-sticky .admin-panel-header {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      position: absolute;
+      top: 8px;
+      right: 8px;
+  }
+  .admin-panel.is-sticky .admin-panel-header h3 { display: none; }
+  .admin-panel h3 { margin-bottom: 24px; font-size: 18px; font-weight: 600; }
+  .admin-panel-content { display: flex; flex-direction: column; gap: 16px; }
+
+  #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
+  .toast-message { padding: 12px 20px; border-radius: var(--radius-md); font-weight: 500; box-shadow: var(--shadow-lg); opacity: 0; transform: translateX(100%); transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+  .toast-message.show { opacity: 1; transform: translateX(0); }
+  .toast-success { background-color: var(--color-brand); color: #fff; }
+  .toast-error { background-color: var(--color-red); color: #fff; }
+  .toast-info { background-color: var(--color-text-primary); color: #fff; }
+  /* Light theme toasts with black text, except light default */
+  body[data-theme="light"] .toast-success { color: #000; }
+  body[data-theme="light"] .toast-info { color: #000; }
+  /* Light default theme keeps white text */
+  body[data-theme="light"][data-theme-id="default"] .toast-success { color: #fff; }
+  body[data-theme="light"][data-theme-id="default"] .toast-info { color: #fff; }
+
+  .timed-action-row { display: grid; grid-template-columns: 30px 1fr 1fr 30px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .timed-action-row select, .timed-action-row input { height: 36px; padding: 0 8px; }
+  #add-timed-action-btn { width: 100%; }
+  
+  #automation-log-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 50vh;
+      overflow-y: auto;
+      padding-right: 8px;
+  }
+  .automation-log-entry { font-size: 13px; line-height: 1.5; }
+  .automation-log-entry .log-meta { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 2px; }
+  .automation-log-entry .log-reason { font-style: italic; color: var(--color-text-secondary); }
+
+  .super-admin-only {
+    display: none !important;
+  }
+  .is-super-admin .super-admin-only {
+    display: flex !important;
+  }
+
+  @media (max-width: 768px) {
+      .dashboard-content { padding: 24px; }
+      .greeting-title { font-size: 28px; }
+      .main-time-counter { font-size: 5rem; }
+      .main-time-counter .timer-seconds { display: none; } 
+      .current-status-text { font-size: 1rem; }
+      .main-action-button { height: 56px; padding: 0 32px; font-size: 18px; }
+      .dashboard-widgets-grid { padding-bottom: 80px; } 
+      .popup-item:hover { background: transparent; }
+      #admin-panels-container { position: fixed; inset: 0; z-index: 2500; pointer-events: none; }
+      .admin-panel {
+          width: 90vw;
+          max-width: 320px;
+          height: 100vh;
+          position: fixed;
+          top: 0 !important;
+          left: 0 !important;
+          z-index: 2600;
+          border-radius: 0;
+          border-right: 1px solid var(--color-border);
+          border-left: none;
+          border-top: none;
+          border-bottom: none;
+          transform: translateX(-100%);
+          transition: transform var(--transition-base);
+          animation: none;
+          overflow-y: auto;
+          display: block;
+          visibility: hidden;
+      }
+      .admin-panel.show {
+          transform: translateX(0);
+          pointer-events: auto;
+          visibility: visible;
+      }
+      .admin-panel-header, .admin-panel.is-sticky .admin-panel-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+          position: static;
+      }
+       .admin-panel-header h3, .admin-panel.is-sticky .admin-panel-header h3 {
+           display: block;
+           margin-bottom: 0;
+       }
+       .close-panel-btn {
+          background: none; border: none; cursor: pointer;
+          padding: 8px; border-radius: 50%; color: var(--color-text-primary);
+      }
+      .close-panel-btn:hover { background-color: var(--color-bg-hover); }
+  }
+</style>
+</head>
+<body data-theme="light">
+<div id="loading-indicator"><div class="loading-spinner"></div></div>
+
+<div class="app-layout">
+    <header class="top-bar">
+        <button id="admin-panel-btn" class="admin-panel-trigger is-admin" style="display: none;" aria-label="Open Admin Panel">
+            <i class="icon" data-icon="shield"></i>
+            <span>Admin panel</span>
+        </button>
+        <div class="top-bar-right">
+            <!-- ===== START: ANNOUNCEMENT BANNER (PILL) ===== -->
+            <div id="announcement-banner" class="announcement-pill" style="display: none;">
+                <span id="announcement-text"></span>
+                <a id="announcement-gmeet-btn" href="#" target="_blank" rel="noopener noreferrer">Join</a>
+                <button id="announcement-close-btn" aria-label="Dismiss announcement">&times;</button>
+            </div>
+            <!-- ===== END: ANNOUNCEMENT BANNER (PILL) ===== -->
+
+            <button id="customize-trigger" class="top-bar-btn" aria-label="Customize appearance">
+                <i class="icon" data-icon="palette"></i>
+            </button>
+            <div class="user-menu-container">
+                <button id="user-menu-trigger" class="top-bar-btn" aria-label="Open User Menu">
+                    <img id="user-menu-pic" src="" alt="Profile" class="profile-pic">
+                </button>
+            </div>
+        </div>
+    </header>
+<div class="dashboard-content">
+    <div class="main-content-wrapper">
+        <header class="dashboard-header">
+            <h1 id="greeting-title" class="greeting-title">Welcome</h1>
+            <p id="current-date" class="current-date"></p>
+        </header>
+        <p id="main-time-counter" class="main-time-counter">00:00:00</p>
+        <p id="current-status-text" class="current-status-text"></p>
+        <div id="main-action-button-container" class="main-action-button-container"></div>
+        
+        <div class="dashboard-widgets-grid">
+            <div class="widget-card log-widget">
+                <div class="widget-header">
+                    <h3>Today's Log</h3>
+                    <a id="gsheet-link" href="#" target="_blank" class="gsheet-link"><i class="icon" data-icon="external-link"></i> View Sheet</a>
+                </div>
+                <div id="time-log-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+<aside id="admin-menu-sidebar" class="admin-menu-sidebar from-left">
+    <div class="team-sidebar-header">
+        <h3>Admin Menu</h3>
+        <button id="close-admin-menu-btn" class="close-sidebar-btn" aria-label="Close admin menu"><i class="icon" data-icon="x"></i></button>
+    </div>
+    <div id="admin-menu-container" class="team-list-container">
+    </div>
+</aside>
+
+<aside id="customize-sidebar" class="customize-sidebar">
+    <div class="customize-header">
+        <h3>Customize</h3>
+        <button id="close-customize-btn" class="close-sidebar-btn" aria-label="Close customize panel">
+            <i class="icon" data-icon="x"></i>
+        </button>
+    </div>
+    <div class="customize-content">
+        <div class="customize-content-inner">
+            <!-- Appearance Section (Dark/Light Mode) -->
+            <div class="customize-section">
+                <h4 class="customize-section-title">Appearance</h4>
+                <div style="display: flex; gap: 12px;">
+                    <button id="light-mode-btn" class="reset-btn" style="flex: 1; margin-top: 0;">Light</button>
+                    <button id="dark-mode-btn" class="reset-btn" style="flex: 1; margin-top: 0;">Dark</button>
+                </div>
+            </div>
+
+            <!-- Color & Theme Section -->
+            <div class="customize-section">
+                <h4 class="customize-section-title">Color & Theme</h4>
+                <div class="theme-cards-grid" id="theme-cards-grid">
+                    <!-- Theme cards will be populated here -->
+                </div>
+            </div>
+
+            <!-- Background Section -->
+            <div class="customize-section">
+                <h4 class="customize-section-title">Background</h4>
+                <div class="background-grid" id="background-grid">
+                    <div class="background-card default-card" id="default-background-card">
+                        <i class="icon" data-icon="x"></i>
+                        <span>No Background</span>
+                    </div>
+                    <div class="background-card upload-card" id="upload-background-card">
+                        <i class="icon" data-icon="image"></i>
+                        <span>Upload</span>
+                    </div>
+                    <!-- Background cards will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<input type="file" id="background-upload-input" accept="image/*" style="display: none;">
+<div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+<div id="admin-panel-backdrop" class="sidebar-backdrop"></div>
+<div class="popup-menu" id="user-actions-popup">
+    <div class="user-popup-profile-section">
+        <div class="user-popup-pic-wrapper">
+            <img id="user-popup-pic" src="" alt="Profile" class="user-popup-pic">
+            <button id="change-picture-btn" class="is-admin change-picture-btn" style="display: none;">
+                <i class="icon" data-icon="camera"></i>
+            </button>
+        </div>
+        <h2 id="user-popup-name" class="user-popup-name"></h2>
+    </div>
+    <div class="popup-search-wrapper">
+        <input type="search" id="user-search-input" placeholder="Search team...">
+    </div>
+    <div class="popup-user-list" id="user-select-list">
+    </div>
+</div>
+<div class="popup-menu" id="admin-panel-popup">
+    <div class="popup-item" data-target="#admin-settings-panel">
+        <i class="icon" data-icon="user-cog"></i><label>User Settings</label>
+    </div>
+    <div class="popup-item super-admin-only" data-target="#admin-automation-panel">
+        <i class="icon" data-icon="automation"></i><label>Automation</label>
+    </div>
+    <div class="popup-item super-admin-only" data-target="#admin-log-panel">
+        <i class="icon" data-icon="history"></i><label>Automation Log</label>
+    </div>
+    <div class="popup-item" data-target="#admin-data-tools-panel">
+        <i class="icon" data-icon="sync"></i><label>Data Tools</label>
+    </div>
+    <div class="popup-item" data-target="#admin-generate-sheet-panel">
+        <i class="icon" data-icon="sheet"></i><label>Generate Week Sheet</label>
+    </div>
+</div>
+<div id="admin-panels-container">
+    <div class="admin-panel" id="admin-settings-panel">
+         <div class="admin-panel-header">
+             <h3>User Settings</h3>
+             <button class="close-panel-btn"><i class="icon" data-icon="x"></i></button>
+        </div>
+        <h3>User Settings</h3>
+        <div class="admin-panel-content">
+            <div class="telegram-group">
+                <div class="form-group">
+                    <label for="settings-telegram-id">Telegram Chat ID</label>
+                    <input type="text" id="settings-telegram-id">
+                </div>
+                <button id="settings-test-telegram" class="panel-btn btn-secondary">Test</button>
+            </div>
+            <div class="form-group-checkbox">
+                <label for="settings-enable-notifs">Enable Telegram Reminders</label>
+                <input type="checkbox" id="settings-enable-notifs">
+            </div>
+             <div class="form-group">
+                <label for="settings-clockin-reminder">Clock-In Reminder Time</label>
+                <input type="time" id="settings-clockin-reminder">
+            </div>
+        </div>
+    </div>
+    <div class="admin-panel" id="admin-automation-panel">
+        <div class="admin-panel-header">
+             <h3>Automation</h3>
+             <button class="close-panel-btn"><i class="icon" data-icon="x"></i></button>
+        </div>
+        <h3>Automation</h3>
+        <div class="admin-panel-content">
+            <h4 style="font-size: 14px; font-weight: 600; color: var(--color-text-primary);">Auto Clock Out</h4>
+            <div class="form-group-checkbox">
+                <label for="settings-enable-auto-clockout">Enable Auto Clock Out by Duration</label>
+                <input type="checkbox" id="settings-enable-auto-clockout">
+            </div>
+            <div class="form-group">
+                <label for="settings-auto-clockout-duration">Working Hours Before Clock Out</label>
+                <input type="number" id="settings-auto-clockout-duration" min="1" value="8">
+            </div>
+<h4 style="font-size: 14px; font-weight: 600; margin-top: 8px; color: var(--color-text-primary);">Auto-end Timers</h4>
+        <div class="form-group-checkbox">
+            <label for="settings-enable-auto-end-break">Auto-end Break</label>
+            <input type="checkbox" id="settings-enable-auto-end-break">
+        </div>
+        <div class="form-group">
+            <label for="settings-auto-end-break-duration">Break Duration (minutes)</label>
+            <input type="number" id="settings-auto-end-break-duration" min="1" value="15">
+        </div>
+         <div class="form-group-checkbox">
+            <label for="settings-enable-auto-end-lunch">Auto-end Lunch</label>
+            <input type="checkbox" id="settings-enable-auto-end-lunch">
+        </div>
+        <div class="form-group">
+            <label for="settings-auto-end-lunch-duration">Lunch Duration (minutes)</label>
+            <input type="number" id="settings-auto-end-lunch-duration" min="1" value="60">
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 600; margin-top: 8px; color: var(--color-text-primary);">Timed Actions</h4>
+         <div id="timed-actions-list"></div>
+        <button id="add-timed-action-btn" class="panel-btn btn-secondary" style="height: 40px;">Add New Timed Action</button>
+    </div>
+</div>
+
+<div class="admin-panel" id="admin-data-tools-panel">
+    <div class="admin-panel-header">
+        <h3>Data Tools</h3>
+        <button class="close-panel-btn"><i class="icon" data-icon="x"></i></button>
+    </div>
+    <h3>Data Tools</h3>
+    <div class="admin-panel-content">
+        <h4 id="admin-entry-title-header" style="font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 8px;">Add / Edit Time Entry</h4>
+        <div id="admin-modal-add-container" class="form-group">
+            <label for="admin-type-select">Entry Type</label>
+            <select id="admin-type-select"></select>
+        </div>
+        <div class="form-group">
+            <label for="admin-time-input">Time</label>
+            <input type="text" id="admin-time-input" placeholder="e.g., 10:20:11 AM">
+        </div>
+        <small style="color: var(--color-text-secondary); display: block;">Use 'M/d/yyyy HH:mm:ss' (24h) for specific dates.</small>
+        <div class="panel-actions" style="margin-top: 16px;">
+            <button id="admin-entry-save" class="panel-btn btn-primary">Save Entry</button>
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 8px;">Recalculate Hours</h4>
+        <div class="form-group">
+            <label for="recalculate-date-input">Select Date</label>
+            <input type="date" id="recalculate-date-input">
+        </div>
+        <div class="panel-actions">
+            <button id="recalculate-confirm" class="panel-btn btn-primary">Recalculate</button>
+        </div>
+    </div>
+</div>
+
+<div class="admin-panel" id="admin-generate-sheet-panel">
+    <div class="admin-panel-header">
+         <h3>Generate Week Sheet</h3>
+         <button class="close-panel-btn"><i class="icon" data-icon="x"></i></button>
+    </div>
+    <h3>Generate Week Sheet</h3>
+    <div class="admin-panel-content">
+        <div class="form-group">
+            <label for="generate-week-input">Week Number(s)</label>
+            <input type="text" id="generate-week-input" placeholder="e.g., 45, 46">
+            <small style="color: var(--color-text-secondary); display: block; margin-top: 4px;">Enter one or more week numbers, separated by commas.</small>
+        </div>
+    </div>
+    <div class="panel-actions">
+        <button id="generate-sheet-confirm" class="panel-btn btn-primary">Generate</button>
+    </div>
+</div>
+
+<div class="admin-panel" id="admin-log-panel">
+    <div class="admin-panel-header">
+         <h3>Automation Log</h3>
+         <button class="close-panel-btn"><i class="icon" data-icon="x"></i></button>
+    </div>
+    <h3>Automation Log</h3>
+    <div class="panel-actions" style="margin-top: 0; margin-bottom: 16px; justify-content: flex-start;">
+        <button id="clear-log-btn" class="panel-btn btn-secondary">Clear Log</button>
+    </div>
+    <div id="automation-log-container" class="admin-panel-content" style="gap: 12px; padding:0;">
+    </div>
+</div>
+</div>
+<input type="file" id="profile-pic-input" accept="image/*" style="display: none;">
+<div id="toast-container"></div>
+<script>
+const Validation = {
+    canClockIn(timeEntries) {
+        const hasClockedOut = timeEntries && timeEntries.clockOut && String(timeEntries.clockOut).trim() !== '--';
+        if (hasClockedOut) { return { isValid: false, message: 'You have already clocked out for the day.' }; }
+        return { isValid: true, message: null };
+    }
+};
+
+const App = {
+    state: { 
+        currentUser: null, users: [], liveUpdateInterval: null, 
+        initialSecondsOnLoad: 0, loadTimestamp: 0, isTeamDataLoaded: false,
+        theme: 'light', isAdmin: <?!= isAdmin ?>, isSuperAdmin: <?!= isSuperAdmin ?>,
+        adminEditContext: null, adminPanelLocked: false, automationEventInterval: null,
+        isTeamDataLoading: false, teamDataLoadFailed: false,
+        isProcessingAction: false
+    },
+    async init() {
+        this.cacheDOMElements();
+        this.bindEventListeners();
+        
+        const savedTheme = localStorage.getItem('timetracker_theme') || 'light';
+        this.state.theme = savedTheme;
+        UI.applyTheme(this.state.theme);
+
+        if (this.state.isAdmin) {
+            document.body.classList.add('is-admin');
+            document.querySelectorAll('.is-admin').forEach(el => el.style.display = 'flex');
+            UI.populateAdminMenuSidebar();
+        }
+
+        if (this.state.isSuperAdmin) {
+            document.body.classList.add('is-super-admin');
+            this.state.automationEventInterval = setInterval(() => this.checkForRecentEvents(), 30000);
+        }
+
+        const savedName = "<?!= userNameFromUrl ?>" || localStorage.getItem('timetracker_selectedName');
+        await this.loadInitialData(savedName);
+        this.loadAnnouncements();
+        API.getSpreadsheetUrl().then(url => UI.setGSheetLink(url));
+        this.loadTeamDataInBackground();
+
+        // Initialize customization panel and wait for background to load
+        await Customize.init();
+    },
+    cacheDOMElements() {
+        this.dom = {
+            loading: document.getElementById('loading-indicator'),
+            userMenu: { 
+                trigger: document.getElementById('user-menu-trigger'), 
+                pic: document.getElementById('user-menu-pic'), 
+                popup: document.getElementById('user-actions-popup'), 
+                userList: document.getElementById('user-select-list'),
+                userSearchInput: document.getElementById('user-search-input'),
+                changePictureBtn: document.getElementById('change-picture-btn'),
+                profilePicInput: document.getElementById('profile-pic-input'),
+                popupPic: document.getElementById('user-popup-pic'),
+                popupName: document.getElementById('user-popup-name')
+            },
+            dashboard: { 
+                greeting: document.getElementById('greeting-title'), date: document.getElementById('current-date'), 
+                counter: document.getElementById('main-time-counter'), statusText: document.getElementById('current-status-text'),
+                actionBtnContainer: document.getElementById('main-action-button-container'), 
+                logContainer: document.getElementById('time-log-container'), gsheetLink: document.getElementById('gsheet-link')
+            },
+            admin: {
+                panelBtn: document.getElementById('admin-panel-btn'), 
+                panelPopup: document.getElementById('admin-panel-popup'),
+                panelsContainer: document.getElementById('admin-panels-container'),
+                adminPanelBackdrop: document.getElementById('admin-panel-backdrop'),
+                menuSidebar: document.getElementById('admin-menu-sidebar'),
+                closeAdminMenuBtn: document.getElementById('close-admin-menu-btn'),
+                menuContainer: document.getElementById('admin-menu-container'),
+                
+                settingsPanel: {
+                    telegramIdInput: document.getElementById('settings-telegram-id'),
+                    testTelegramBtn: document.getElementById('settings-test-telegram'),
+                    enableNotifsToggle: document.getElementById('settings-enable-notifs'),
+                    clockInReminderInput: document.getElementById('settings-clockin-reminder')
+                },
+                 automationPanel: {
+                    enableAutoClockOutToggle: document.getElementById('settings-enable-auto-clockout'),
+                    autoClockOutDurationInput: document.getElementById('settings-auto-clockout-duration'),
+                    enableAutoEndBreakToggle: document.getElementById('settings-enable-auto-end-break'),
+                    autoEndBreakDurationInput: document.getElementById('settings-auto-end-break-duration'),
+                    enableAutoEndLunchToggle: document.getElementById('settings-enable-auto-end-lunch'),
+                    autoEndLunchDurationInput: document.getElementById('settings-auto-end-lunch-duration'),
+                    timedActionsList: document.getElementById('timed-actions-list'),
+                    addTimedActionBtn: document.getElementById('add-timed-action-btn')
+                },
+                addEntryPanel: {
+                    titleHeader: document.getElementById('admin-entry-title-header'),
+                    typeSelect: document.getElementById('admin-type-select'),
+                    input: document.getElementById('admin-time-input'),
+                    saveBtn: document.getElementById('admin-entry-save'),
+                },
+                generateSheetPanel: {
+                    input: document.getElementById('generate-week-input'),
+                    confirmBtn: document.getElementById('generate-sheet-confirm'),
+                },
+                recalculatePanel: {
+                    input: document.getElementById('recalculate-date-input'),
+                    confirmBtn: document.getElementById('recalculate-confirm'),
+                },
+                logPanel: {
+                    panel: document.getElementById('admin-log-panel'),
+                    container: document.getElementById('automation-log-container'),
+                    clearBtn: document.getElementById('clear-log-btn')
+                }
+            },
+            announcement: {
+                banner: document.getElementById('announcement-banner'),
+                text: document.getElementById('announcement-text'),
+                gmeetBtn: document.getElementById('announcement-gmeet-btn'),
+                closeBtn: document.getElementById('announcement-close-btn')
+            },
+            customize: {
+                trigger: document.getElementById('customize-trigger'),
+                sidebar: document.getElementById('customize-sidebar'),
+                themeCardsGrid: document.getElementById('theme-cards-grid'),
+                backgroundGrid: document.getElementById('background-grid'),
+                defaultBackgroundCard: document.getElementById('default-background-card'),
+                uploadBackgroundCard: document.getElementById('upload-background-card'),
+                backgroundUploadInput: document.getElementById('background-upload-input')
+            }
+        };
+    },
+    bindEventListeners() {
+        document.addEventListener('click', (e) => UI.hideAllPopupsIfOutside(e));
+        this.dom.userMenu.trigger.addEventListener('click', (e) => UI.togglePopupMenu(this.dom.userMenu.popup, e, this.dom.userMenu.trigger));
+        this.dom.userMenu.userSearchInput.addEventListener('input', (e) => UI.renderUserSelectionPopup(this.state.users, e.target.value));
+        
+        this.dom.announcement.closeBtn.addEventListener('click', (e) => {
+            const eventId = e.currentTarget.dataset.eventId;
+            UI.hideAnnouncementBanner(eventId);
+        });
+
+        // Customize panel event listeners
+        this.dom.customize.trigger.addEventListener('click', (e) => Customize.toggleCustomize(e));
+        document.getElementById('close-customize-btn').addEventListener('click', () => Customize.toggleCustomize());
+        document.getElementById('sidebar-backdrop').addEventListener('click', () => {
+            Customize.toggleCustomize();
+            UI.toggleAdminMenuSidebar(false);
+        });
+
+        // Light/Dark mode buttons
+        document.getElementById('light-mode-btn').addEventListener('click', () => this.setTheme('light'));
+        document.getElementById('dark-mode-btn').addEventListener('click', () => this.setTheme('dark'));
+
+        // Background upload and default
+        this.dom.customize.defaultBackgroundCard.addEventListener('click', () => Customize.removeBackground());
+        this.dom.customize.uploadBackgroundCard.addEventListener('click', () => this.dom.customize.backgroundUploadInput.click());
+        this.dom.customize.backgroundUploadInput.addEventListener('change', (e) => Customize.handleBackgroundUpload(e));
+
+        if (this.state.isAdmin) {
+            this.dom.admin.panelBtn.addEventListener('click', (e) => {
+                if (window.innerWidth > 768) {
+                    UI.togglePopupMenu(this.dom.admin.panelPopup, e, this.dom.admin.panelBtn);
+                } else {
+                    UI.toggleAdminMenuSidebar(true);
+                }
+            });
+            
+            const adminPopup = this.dom.admin.panelPopup;
+            const adminPanelsContainer = this.dom.admin.panelsContainer;
+            let hidePanelTimeout;
+            
+            const cancelHide = () => clearTimeout(hidePanelTimeout);
+            const scheduleHide = () => {
+                if (App.state.adminPanelLocked) return;
+                cancelHide();
+                hidePanelTimeout = setTimeout(() => {
+                    if (window.innerWidth > 768) {
+                        adminPanelsContainer.querySelectorAll('.admin-panel.show').forEach(p => p.classList.remove('show'));
+                    }
+                }, 200);
+            };
+            
+            adminPopup.addEventListener('mouseleave', scheduleHide);
+            adminPanelsContainer.addEventListener('mouseenter', cancelHide);
+            adminPanelsContainer.addEventListener('mouseleave', scheduleHide);
+            
+            adminPopup.querySelectorAll('.popup-item[data-target]').forEach(item => {
+                item.addEventListener('mouseenter', () => {
+                    if (window.innerWidth > 768 && !App.state.adminPanelLocked) {
+                        cancelHide();
+                        UI.showAdminHoverPanel(item.dataset.target, adminPopup);
+                    }
+                });
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (window.innerWidth > 768) {
+                        const targetId = e.currentTarget.dataset.target;
+                        UI.showAdminHoverPanel(targetId, adminPopup, (targetPanel) => {
+                            targetPanel.classList.add('is-sticky');
+                            App.state.adminPanelLocked = true;
+                        });
+                        adminPopup.classList.remove('show');
+                    }
+                });
+            });
+
+            this.dom.admin.closeAdminMenuBtn.addEventListener('click', () => UI.toggleAdminMenuSidebar(false));
+            this.dom.admin.adminPanelBackdrop.addEventListener('click', () => {
+                UI.hideAdminSlidePanel();
+                UI.toggleAdminMenuSidebar(false);
+            });
+
+            adminPanelsContainer.querySelectorAll('.close-panel-btn').forEach(btn => {
+                btn.addEventListener('click', UI.hideAdminSlidePanel);
+            });
+            
+            this.dom.admin.addEntryPanel.saveBtn.addEventListener('click', () => this.handleAdminSave());
+            this.dom.admin.settingsPanel.testTelegramBtn.addEventListener('click', () => this.handleTestTelegram());
+            this.dom.admin.settingsPanel.telegramIdInput.addEventListener('change', (e) => this.handleSettingChange('telegramChatId', e.target.value));
+            this.dom.admin.settingsPanel.enableNotifsToggle.addEventListener('change', (e) => this.handleSettingChange('enableNotifications', e.target.checked.toString()));
+            this.dom.admin.settingsPanel.clockInReminderInput.addEventListener('change', (e) => this.handleSettingChange('clockInReminderTime', e.target.value));
+            
+            this.dom.admin.automationPanel.enableAutoClockOutToggle.addEventListener('change', e => this.handleSettingChange('enableAutoClockOut', e.target.checked.toString()));
+            this.dom.admin.automationPanel.autoClockOutDurationInput.addEventListener('change', e => this.handleSettingChange('autoClockOutDuration', e.target.value));
+            this.dom.admin.automationPanel.enableAutoEndBreakToggle.addEventListener('change', e => this.handleSettingChange('enableAutoEndBreak', e.target.checked.toString()));
+            this.dom.admin.automationPanel.autoEndBreakDurationInput.addEventListener('change', e => this.handleSettingChange('autoEndBreakDuration', e.target.value));
+            this.dom.admin.automationPanel.enableAutoEndLunchToggle.addEventListener('change', e => this.handleSettingChange('enableAutoEndLunch', e.target.checked.toString()));
+            this.dom.admin.automationPanel.autoEndLunchDurationInput.addEventListener('change', e => this.handleSettingChange('autoEndLunchDuration', e.target.value));
+            
+            this.dom.admin.automationPanel.addTimedActionBtn.addEventListener('click', () => UI.renderTimedActionTrigger());
+            this.dom.admin.automationPanel.timedActionsList.addEventListener('change', () => this.saveTimedActionTriggers());
+            this.dom.admin.automationPanel.timedActionsList.addEventListener('click', (e) => {
+                if (e.target.closest('.delete-timed-action-btn')) {
+                    e.target.closest('.timed-action-row').remove();
+                    this.saveTimedActionTriggers();
+                }
+            });
+
+            this.dom.userMenu.changePictureBtn.addEventListener('click', () => this.dom.userMenu.profilePicInput.click());
+            this.dom.userMenu.profilePicInput.addEventListener('change', (e) => this.handlePictureUpload(e));
+            this.dom.admin.generateSheetPanel.confirmBtn.addEventListener('click', () => this.handleGenerateSheet());
+            this.dom.admin.recalculatePanel.confirmBtn.addEventListener('click', () => this.handleAdminRecalculate());
+            this.dom.admin.logPanel.clearBtn.addEventListener('click', () => this.handleClearLogs());
+        }
+    },
+async handleTimeEntry(action) {
+    if (this.state.isProcessingAction) {
+        return;
+    }
+
+    const originalState = JSON.parse(JSON.stringify(this.state.currentUser));
+    const currentButton = this.dom.dashboard.actionBtnContainer.querySelector('button');
+    
+    try {
+        this.state.isProcessingAction = true;
+        if (currentButton) {
+            currentButton.disabled = true;
+            currentButton.textContent = 'Processing...';
+        }
+
+        const result = await API.processTimeEntry(originalState.name, action);
+        
+        if (result.success && result.updatedUserData) {
+            if (result.dynamicGreeting) {
+                this.state.dynamicGreeting = result.dynamicGreeting;
+            }
+            this.setCurrentUser(result.updatedUserData);
+
+            const successMessages = {
+                clockIn: 'Successfully clocked in.',
+                breakOut: 'Break has started.',
+                breakIn: 'Welcome back from your break.',
+                lunchOut: 'Lunch break has started.',
+                lunchIn: 'Welcome back from lunch.',
+                clockOut: 'Successfully clocked out.'
+            };
+            const message = successMessages[action] || 'Action successful.';
+            UI.showToast(message, 'success');
+
+        } else {
+            throw new Error(result.error || 'An unknown error occurred.');
+        }
+    } catch (error) {
+        UI.showToast(error.message, 'error');
+        this.setCurrentUser(originalState); // Revert UI on error
+    } finally {
+        this.state.isProcessingAction = false;
+    }
+},
+    async checkForRecentEvents() {
+        try {
+            const result = await API.getRecentAutomationEvents();
+            if (result.success && result.events && result.events.length > 0) {
+                result.events.forEach(event => {
+                    const message = `AUTOMATION: ${event.userName} - ${event.action}. (${event.reason})`;
+                    UI.showToast(message, 'info', 8000);
+                });
+            }
+        } catch (error) {
+            console.error('Failed to check for recent automation events:', error);
+        }
+    },
+    async handleClearLogs() {
+        if (confirm('Are you sure you want to clear the entire automation log? This cannot be undone.')) {
+            UI.setLoading(true);
+            try {
+                const result = await API.clearAutomationLogs();
+                if (!result.success) throw new Error(result.error || 'Failed to clear logs.');
+                UI.showToast('Automation log cleared.', 'success');
+                UI.renderAutomationLog([]);
+            } catch (error) {
+                UI.showToast(`Error: ${error.message}`, 'error');
+            } finally {
+                UI.setLoading(false);
+            }
+        }
+    }
+};
+
+const UI = {
+    renderDashboard(user) {
+        // Use dynamic greeting from backend if available
+        if (App.state.dynamicGreeting) {
+            App.dom.dashboard.greeting.textContent = `${App.state.dynamicGreeting.greeting}, ${App.state.dynamicGreeting.name}`;
+        } else {
+            // Fallback to simple time-based greeting
+            const firstName = user.name.split(' ')[0];
+            const hour = new Date().getHours();
+            let greetingText;
+            if (hour < 12) {
+                greetingText = "Good morning";
+            } else if (hour === 12) {
+                greetingText = "Good noon";
+            } else if (hour < 18) {
+                greetingText = "Good afternoon";
+            } else {
+                greetingText = "Good evening";
+            }
+            App.dom.dashboard.greeting.textContent = `${greetingText}, ${firstName}`;
+        }
+
+        App.dom.dashboard.date.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        this.updateLiveCounter(user.totalSecondsToday);
+        this.renderActionButtons(user.status, user.timeEntries);
+        this.renderTimeLog(user.timeEntries);
+        this.updateStatusText(user.status);
+    },
+    renderAutomationLog(logs) {
+        const container = App.dom.admin.logPanel.container;
+        if (!logs || logs.length === 0) {
+            container.innerHTML = '<p style="color: var(--color-text-secondary); text-align: center; padding: 20px 0;">No automation events have been logged.</p>';
+            return;
+        }
+
+        container.innerHTML = logs.map(log => {
+            const timestamp = new Date(log.timestamp);
+            const formattedTime = timestamp.toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+
+            return `<div class="automation-log-entry">
+                        <div class="log-meta">${formattedTime} - <strong>${log.userName}</strong></div>
+                        <div class="log-action">${log.action}</div>
+                        <div class="log-reason">${log.reason}</div>
+                    </div>`;
+        }).join('');
+    },
+};
+
+Object.assign(App, {
+    async loadInitialData(userName) {
+        UI.setLoading(true);
+        try {
+            const data = await API.getInitialLoadData(userName);
+            if (data.nameList) {
+                this.state.users = data.nameList;
+                UI.renderUserSelectionPopup(this.state.users, '');
+            }
+            if (data.dynamicGreeting) {
+                this.state.dynamicGreeting = data.dynamicGreeting;
+            }
+            if (data.initialUserData) { this.setCurrentUser(data.initialUserData); }
+            else if (data.nameList && data.nameList.length > 0) { this.loadInitialData(data.nameList[0].name); }
+        } catch (error) { UI.showToast('Failed to load initial data.', 'error'); }
+        finally { UI.setLoading(false); }
+    },
+    async loadTeamDataInBackground() {
+        if (this.state.isTeamDataLoading) return;
+        this.state.isTeamDataLoading = true;
+        this.state.teamDataLoadFailed = false;
+        try {
+            const result = await API.getAllUsersStatus();
+            if (result.success && result.users) {
+                const userMap = new Map(this.state.users.map(u => [u.name, u]));
+                result.users.forEach(statusUser => {
+                    if (userMap.has(statusUser.name)) {
+                        Object.assign(userMap.get(statusUser.name), statusUser);
+                    }
+                });
+                this.state.users = Array.from(userMap.values());
+                this.state.isTeamDataLoaded = true;
+
+                if (this.dom.userMenu.popup.classList.contains('show')) {
+                    UI.renderUserSelectionPopup(this.state.users, this.dom.userMenu.userSearchInput.value);
+                }
+            } else {
+                 throw new Error(result.error || 'Failed to get user statuses.');
+            }
+        } catch (e) {
+            console.error("Failed to load team data in background", e);
+            this.state.teamDataLoadFailed = true;
+            if (this.dom.userMenu.popup.classList.contains('show')) {
+                 this.dom.userMenu.userList.innerHTML = `<p style="text-align: center; color: var(--color-text-secondary); padding: 20px;">Could not load team data.</p>`;
+            }
+        } finally {
+            this.state.isTeamDataLoading = false;
+        }
+    },
+    setCurrentUser(userData) {
+        this.state.currentUser = userData;
+        this.state.initialSecondsOnLoad = userData.totalSecondsToday || 0;
+        this.state.loadTimestamp = Date.now();
+        localStorage.setItem('timetracker_selectedName', userData.name);
+        this.updateAllUI();
+        this.startLiveUpdates();
+    },
+    updateAllUI() {
+        if (!this.state.currentUser) return;
+        UI.updateUserMenu(this.state.currentUser);
+        UI.updateUserActionsPopup(this.state.currentUser);
+        UI.renderDashboard(this.state.currentUser);
+        if (this.state.isAdmin) { UI.updateSettingsPanel(this.state.currentUser.preferences); }
+    },
+    handleUserSwitch(userName) { 
+        this.loadInitialData(userName); 
+        UI.hideAllPopupsIfOutside({target: document.body});
+    },
+    setTheme(theme) {
+        this.state.theme = theme;
+        localStorage.setItem('timetracker_theme', theme);
+        UI.applyTheme(theme);
+
+        // Re-render theme cards for the new mode
+        Customize.renderThemeCards();
+
+        // Reapply color theme if one is selected
+        const saved = Customize.getSavedCustomization();
+        if (saved.selectedTheme) {
+            Customize.applyTheme(saved.selectedTheme);
+        }
+    },
+    startLiveUpdates() { 
+        if (this.state.liveUpdateInterval) clearInterval(this.state.liveUpdateInterval); 
+        this.state.liveUpdateInterval = setInterval(() => this.liveUpdateTick(), 1000); 
+    },
+    liveUpdateTick() {
+        if (this.state.currentUser?.status === 'Working') {
+            const elapsedSeconds = (Date.now() - this.state.loadTimestamp) / 1000;
+            const totalSeconds = this.state.initialSecondsOnLoad + elapsedSeconds;
+            UI.updateLiveCounter(totalSeconds);
+        }
+        
+        if (this.state.currentUser && this.state.currentUser.lastActionTimestamp) {
+            const durationTimerEl = document.getElementById('log-duration-timer');
+            if (durationTimerEl) {
+                const durationSeconds = (Date.now() - this.state.currentUser.lastActionTimestamp) / 1000;
+                const hours = Math.floor(durationSeconds / 3600);
+                const minutes = Math.floor((durationSeconds % 3600) / 60);
+                const seconds = Math.floor(durationSeconds % 60);
+                durationTimerEl.textContent = `(${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')})`;
+            }
+        }
+    },
+    handleSettingChange(key, value) { API.saveUserPreference(App.state.currentUser.name, key, value); App.state.currentUser.preferences[key] = value; },
+    handleAdminEdit(actionKey, label, currentValue) {
+        const user = this.state.currentUser;
+        const targetRow = user.actualDataRowForStatus || user.todaysRow;
+
+        if (!targetRow) {
+            UI.showToast(`Cannot edit: No schedule found for ${user.name} today.`, 'error');
+            return;
+        }
+        
+        this.state.adminEditContext = { mode: 'edit', row: targetRow, actionKey: actionKey };
+        const targetId = '#admin-data-tools-panel';
+        if (window.innerWidth > 768) {
+            UI.showAdminHoverPanel(targetId, App.dom.admin.panelPopup, () => UI.prepareAdminPanel(targetId, `Edit ${label}`, currentValue));
+        } else {
+            UI.showAdminSlidePanel(targetId, () => UI.prepareAdminPanel(targetId, `Edit ${label}`, currentValue));
+        }
+    },
+    async handleAdminDelete(actionKey, label) {
+        const user = this.state.currentUser;
+        const targetRow = user.actualDataRowForStatus || user.todaysRow;
+
+        if (!targetRow) {
+            UI.showToast(`Cannot delete: No schedule found for ${user.name} today.`, 'error');
+            return;
+        }
+        
+        if (confirm(`Are you sure you want to delete the "${label}" entry? This cannot be undone.`)) {
+            UI.setLoading(true);
+            try {
+                const result = await API.updateTimeEntry(targetRow, actionKey, '');
+                if (!result.success) throw new Error(result.error || 'Failed to delete entry.');
+                UI.showToast(`${label} entry deleted.`, 'success');
+                await this.loadInitialData(this.state.currentUser.name);
+            } catch (error) { UI.showToast(`Error: ${error.message}`, 'error'); }
+            finally { UI.setLoading(false); }
+        }
+    },
+    async handleAdminSave() {
+        if (!this.state.adminEditContext) return;
+        const { mode, row, actionKey } = this.state.adminEditContext;
+        const finalActionKey = (mode === 'add') ? this.dom.admin.addEntryPanel.typeSelect.value : actionKey;
+        const newTimeValue = this.dom.admin.addEntryPanel.input.value;
+        UI.setLoading(true);
+        try {
+            const result = await API.updateTimeEntry(row || this.state.currentUser.todaysRow, finalActionKey, newTimeValue);
+            if (!result.success) throw new Error(result.error || 'Failed to update entry.');
+            UI.showToast('Time entry saved successfully.', 'success');
+            await this.loadInitialData(this.state.currentUser.name);
+        } catch (error) { UI.showToast(`Error: ${error.message}`, 'error'); } 
+        finally { 
+            UI.hideAdminSlidePanel();
+            UI.setLoading(false); 
+        }
+    },
+    async handleGenerateSheet() {
+        const weekInput = this.dom.admin.generateSheetPanel.input.value;
+        if (!weekInput.trim()) {
+            UI.showToast("Please enter at least one week number.", 'error');
+            return;
+        }
+
+        const weekNumbers = weekInput.split(',')
+            .map(s => parseInt(s.trim(), 10))
+            .filter(n => !isNaN(n) && n > 0);
+
+        if (weekNumbers.length === 0) {
+            UI.showToast("Please enter valid week numbers.", 'error');
+            return;
+        }
+
+        UI.setLoading(true);
+        try {
+            const result = await API.generateWeekSheet(weekNumbers);
+            if (result.success) UI.showToast(result.message, 'success');
+            else throw new Error(result.error);
+        } catch (error) { UI.showToast(`Error: ${error.message}`, 'error'); } 
+        finally { 
+            UI.hideAdminSlidePanel();
+            UI.setLoading(false);
+        }
+    },
+    async handleAdminRecalculate() {
+        const dateValue = this.dom.admin.recalculatePanel.input.value;
+        if (!dateValue) { UI.showToast("Please select a date.", 'error'); return; }
+        const dateObj = new Date(dateValue);
+        const timezoneOffset = dateObj.getTimezoneOffset() * 60000;
+        const adjustedDate = new Date(dateObj.getTime() + timezoneOffset);
+        const dateString = `${adjustedDate.getMonth() + 1}/${adjustedDate.getDate()}/${adjustedDate.getFullYear()}`;
+        UI.setLoading(true);
+        try {
+            const result = await API.recalculateHoursForDate(this.state.currentUser.name, dateString);
+            if (result.success) { UI.showToast(`Recalculated hours for ${dateString}. New total: ${result.newTotalHours} hrs.`, 'success'); } 
+            else { throw new Error(result.error || 'Failed to recalculate.'); }
+        } catch (error) { UI.showToast(`Error: ${error.message}`, 'error'); }
+        finally {
+            UI.hideAdminSlidePanel();
+            UI.setLoading(false);
+        }
+    },
+    async handleTestTelegram() {
+        const btn = this.dom.admin.settingsPanel.testTelegramBtn;
+        const originalText = btn.textContent;
+        btn.textContent = '...'; btn.disabled = true;
+        const chatId = this.dom.admin.settingsPanel.telegramIdInput.value;
+        try {
+            const result = await API.sendTestTelegramMessage(chatId, this.state.currentUser.name);
+            if(result.success) { UI.showToast('Test message sent successfully!', 'success'); } 
+            else { throw new Error(result.error || 'Failed to send message.'); }
+        } catch (error) { UI.showToast(`Error: ${error.message}`, 'error'); } 
+        finally { btn.textContent = originalText; btn.disabled = false; }
+    },
+    handlePictureUpload(event) {
+        const file = event.target.files[0];
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            UI.setLoading(true);
+            const [header, base64Data] = e.target.result.split(',');
+            const mimeType = header.match(/:(.*?);/)[1];
+            try {
+                const result = await API.saveProfilePicture(this.state.currentUser.name, base64Data, mimeType);
+                if (result.success) {
+                    this.state.currentUser.profilePicFileId = result.fileId;
+                    UI.updateUserMenu(this.state.currentUser);
+                    UI.updateUserActionsPopup(this.state.currentUser);
+                    UI.showToast('Profile picture updated!', 'success');
+                } else { throw new Error(result.error || 'Failed to upload image.'); }
+            } catch (error) { UI.showToast(`Error: ${error.message}`, 'error'); } 
+            finally { UI.setLoading(false); }
+        };
+        reader.readAsDataURL(file);
+        event.target.value = null;
+    },
+    async loadAnnouncements() {
+        try {
+            const events = await API.getTodaysCalendarEvents();
+            if (events && events.length > 0) {
+                const now = new Date();
+                const upcomingEvent = events
+                    .filter(event => new Date(event.endTime) > now)
+                    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))[0];
+
+                if (upcomingEvent) {
+                    UI.showAnnouncementBanner(upcomingEvent);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load calendar announcements:", error);
+        }
+    },
+    saveTimedActionTriggers() {
+        const triggers = [];
+        App.dom.admin.automationPanel.timedActionsList.querySelectorAll('.timed-action-row').forEach(row => {
+            triggers.push({
+                enabled: row.querySelector('.trigger-enabled').checked,
+                action: row.querySelector('.trigger-action').value,
+                time: row.querySelector('.trigger-time').value,
+            });
+        });
+        this.handleSettingChange('timedActionTriggers', JSON.stringify(triggers));
+    }
+});
+
+Object.assign(UI, {
+    setLoading: (isLoading) => App.dom.loading.classList.toggle('show', isLoading),
+    applyTheme(theme) {
+        document.body.dataset.theme = theme;
+    },
+    togglePopupMenu(popup, event, trigger) {
+        event.stopPropagation();
+        const isCurrentlyVisible = popup.classList.contains('show');
+        document.querySelectorAll('.popup-menu.show').forEach(p => p.classList.remove('show'));
+        UI.hideAdminSlidePanel();
+
+        if (!isCurrentlyVisible) {
+            popup.classList.add('show');
+            const rect = trigger.getBoundingClientRect();
+            popup.style.top = `${rect.bottom + 8}px`;
+
+            if (popup.id === 'admin-panel-popup') {
+                popup.style.left = `${rect.left}px`;
+                popup.style.right = 'auto';
+            } else { 
+                popup.style.left = 'auto';
+                popup.style.right = `${window.innerWidth - rect.right}px`;
+            }
+
+            if (popup.id === 'user-actions-popup') {
+                UI.renderUserSelectionPopup(App.state.users, App.dom.userMenu.userSearchInput.value);
+            }
+        }
+    },
+    hideAllPopupsIfOutside(event) {
+        const panelsContainer = App.dom.admin.panelsContainer;
+        if (App.state.adminPanelLocked) {
+            const stickyPanel = panelsContainer.querySelector('.is-sticky');
+            if (stickyPanel && !stickyPanel.contains(event.target)) {
+                 UI.hideAdminSlidePanel();
+            }
+        }
+
+        // Handle customize panel on desktop
+        const customizeSidebar = App.dom.customize.sidebar;
+        const customizeTrigger = App.dom.customize.trigger;
+        const isDesktop = window.innerWidth > 768;
+        if (isDesktop && customizeSidebar.classList.contains('is-visible')) {
+            if (!customizeSidebar.contains(event.target) && !customizeTrigger.contains(event.target)) {
+                customizeSidebar.classList.remove('is-visible');
+            }
+        }
+
+        document.querySelectorAll('.popup-menu.show').forEach(popup => {
+            let triggerId;
+            if (popup.id === 'user-actions-popup') triggerId = 'user-menu-trigger';
+            else if (popup.id === 'admin-panel-popup') triggerId = 'admin-panel-btn';
+
+            const trigger = document.getElementById(triggerId);
+            if (trigger && !trigger.contains(event.target) && !popup.contains(event.target) && !panelsContainer.contains(event.target)) {
+                popup.classList.remove('show');
+                 if (!App.state.adminPanelLocked) {
+                    panelsContainer.querySelectorAll('.admin-panel.show:not(.is-sticky)').forEach(p => p.classList.remove('show'));
+                }
+            }
+        });
+    },
+    updateUserMenu: (user) => { UI.updateProfilePic(App.dom.userMenu.pic, user.profilePicFileId); },
+    updateUserActionsPopup(user) {
+        const { userMenu } = App.dom;
+        this.updateProfilePic(userMenu.popupPic, user.profilePicFileId);
+        userMenu.popupName.textContent = user.name;
+    },
+    setGSheetLink: (url) => { if (App.dom.dashboard.gsheetLink) App.dom.dashboard.gsheetLink.href = url || '#'; },
+    updateLiveCounter(s) { 
+        const timeString = `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}<span class="timer-seconds">:${String(Math.floor(s%60)).padStart(2,'0')}</span>`;
+        App.dom.dashboard.counter.innerHTML = timeString;
+        if (App.state.currentUser?.status === 'Working') { document.title = `${timeString.replace(/<[^>]*>/g, '')} - Time Tracker`; }
+    },
+    updateStatusText(status) {
+        let text = ''; let title = 'Time Tracker';
+        switch(status) {
+            case 'Working': text = 'You are currently <strong class="status-text-working">Working</strong>.'; title = 'Working - Time Tracker'; break;
+            case 'OnBreak': text = 'You are currently on a <strong class="status-text-break">Break</strong>.'; title = 'On Break - Time Tracker'; break;
+            case 'OnLunch': text = 'You are currently on <strong class="status-text-break">Lunch</strong>.'; title = 'On Lunch - Time Tracker'; break;
+            case 'Offline': text = 'You are <strong class="status-text-offline">Clocked Out</strong>.'; title = 'Clocked Out - Time Tracker'; break;
+        }
+        App.dom.dashboard.statusText.innerHTML = text; document.title = title;
+    },
+    renderActionButtons(status, timeEntries) {
+        const container = App.dom.dashboard.actionBtnContainer; 
+        container.innerHTML = '';
+        const createBtn = (action, text, cssClass) => { const btn = document.createElement('button'); btn.className = `main-action-button ${cssClass}`; btn.textContent = text; btn.onclick = () => App.handleTimeEntry(action); return btn; };
+        let newBtn; const has = (key) => timeEntries && timeEntries[key] && String(timeEntries[key]).trim() !== '--';
+        if (status === 'Offline') {
+            newBtn = createBtn('clockIn', 'Clock In', 'btn-green');
+            const validation = Validation.canClockIn(timeEntries);
+            if (!validation.isValid) { newBtn.disabled = true; App.dom.dashboard.statusText.innerHTML = `<strong class="status-text-warning">${validation.message}</strong>`; } 
+            else { this.updateStatusText('Offline'); }
+        } 
+        else if (status === 'Working') {
+            if (!has('breakOut')) { newBtn = createBtn('breakOut', 'Start Break', 'btn-orange'); } 
+            else if (has('breakIn') && !has('lunchOut')) { newBtn = createBtn('lunchOut', 'Start Lunch', 'btn-orange'); } 
+            else { newBtn = createBtn('clockOut', 'Clock Out', 'btn-red'); }
+        } else if (status === 'OnBreak') { newBtn = createBtn('breakIn', 'End Break', 'btn-green'); } 
+        else if (status === 'OnLunch') { newBtn = createBtn('lunchIn', 'End Lunch', 'btn-green'); }
+        if (newBtn) { container.appendChild(newBtn); }
+    },
+    renderTimeLog(timeEntries) {
+        const logMap = [ { key: 'clockIn', label: 'Clock In', icon: 'login' }, { key: 'breakOut', label: 'Break Out', icon: 'coffee' }, { key: 'breakIn', label: 'Break In', icon: 'coffee' }, { key: 'lunchOut', label: 'Lunch Out', icon: 'utensils' }, { key: 'lunchIn', label: 'Lunch In', icon: 'utensils' }, { key: 'clockOut', label: 'Clock Out', icon: 'logout' }];
+        App.dom.dashboard.logContainer.innerHTML = logMap.map(item => {
+            const hasEntry = timeEntries && timeEntries[item.key] && timeEntries[item.key] !== '--';
+            const timeDisplay = hasEntry ? timeEntries[item.key] : '--';
+            
+            let durationSpan = '';
+            if (App.state.currentUser) {
+                const { activeLogKey } = App.state.currentUser;
+                if (item.key === activeLogKey && App.state.currentUser.status !== 'Offline' && App.state.currentUser.status !== 'Working') {
+                    durationSpan = ` <span id="log-duration-timer" class="log-duration"></span>`;
+                }
+            }
+            
+            return `<div class="log-item">
+                        <div class="log-item-info">
+                            <div class="log-icon-wrapper"><i class="icon" data-icon="${item.icon}"></i></div>
+                            <div>
+                                <div class="log-label">${item.label}</div>
+                                <div class="log-time">${timeDisplay}${durationSpan}</div>
+                            </div>
+                        </div>
+                        <div class="admin-actions">
+                            <button class="admin-action-btn" aria-label="${hasEntry ? 'Edit' : 'Add'} ${item.label} time" onclick="App.handleAdminEdit('${item.key}', '${item.label}', '${hasEntry ? timeEntries[item.key] : ''}')"><i class="icon" data-icon="${hasEntry ? 'edit' : 'plus'}"></i></button>
+                            ${hasEntry ? `<button class="admin-action-btn" aria-label="Delete ${item.label} time" onclick="App.handleAdminDelete('${item.key}', '${item.label}')"><i class="icon" data-icon="trash"></i></button>` : ''}
+                        </div>
+                    </div>`;
+        }).join('');
+    },
+    renderUserSelectionPopup(users, query = '') {
+        const listContainer = App.dom.userMenu.userList;
+        const searchTerm = query.toLowerCase();
+        
+        if (!users || users.length === 0) {
+            listContainer.innerHTML = '<div class="loading-spinner" style="margin: 40px auto;"></div>';
+            return;
+        }
+        
+        const filteredUsers = users.filter(user => user.name.toLowerCase().includes(searchTerm));
+
+        if (filteredUsers.length === 0) {
+            listContainer.innerHTML = `<p style="text-align: center; color: var(--color-text-secondary); padding: 10px 0;">No users found.</p>`;
+            return;
+        }
+
+        listContainer.innerHTML = filteredUsers.map(user => {
+            let statusPillHtml = '';
+            
+            if (user.status) {
+                let statusClass = 'status-offline';
+                let statusText = user.status;
+                if (statusText === 'Working') statusClass = 'status-working';
+                else if (statusText.includes('Break') || statusText.includes('Lunch')) statusClass = 'status-break';
+                statusPillHtml = `<span class="status-pill ${statusClass}">${statusText.replace(/([A-Z])/g, ' $1').trim()}</span>`;
+            }
+
+            return `
+            <div class="popup-user-item" data-name="${user.name}">
+                <div class="popup-user-info">
+                    <img class="profile-pic" data-pic-fileid="${user.profilePicFileId || ''}" alt="${user.name.charAt(0)}">
+                    <span>${user.name}</span>
+                </div>
+                ${statusPillHtml}
+            </div>`;
+        }).join('');
+        
+        listContainer.querySelectorAll('.popup-user-item').forEach(item => {
+            item.addEventListener('click', () => App.handleUserSwitch(item.dataset.name));
+        });
+        this.loadAllVisibleProfilePictures();
+    },
+    populateAdminMenuSidebar() {
+        const popup = App.dom.admin.panelPopup;
+        const container = App.dom.admin.menuContainer;
+        if (container.querySelector('.popup-item')) {
+            return;
+        }
+
+        container.innerHTML = '';
+
+        popup.querySelectorAll('.popup-item').forEach(item => {
+            const clone = item.cloneNode(true);
+            clone.addEventListener('click', () => {
+                const targetId = clone.dataset.target;
+                if (targetId) {
+                    this.showAdminSlidePanel(targetId);
+                    this.toggleAdminMenuSidebar(false, true);
+                }
+            });
+            container.appendChild(clone);
+        });
+    },
+    toggleAdminMenuSidebar(show, keepBackdrop = false) {
+        App.dom.admin.menuSidebar.classList.toggle('is-visible', show);
+        if (!keepBackdrop) {
+            App.dom.admin.adminPanelBackdrop.classList.toggle('is-visible', show);
+        }
+    },
+    prepareAdminPanel(panelId, ...args) {
+        switch (panelId) {
+            case '#admin-data-tools-panel': {
+                const [title, currentValue] = args;
+                this.setupAdminEntryPanel(title || 'Add Time Entry', currentValue || '');
+                App.dom.admin.recalculatePanel.input.valueAsDate = new Date();
+                break;
+            }
+            case '#admin-generate-sheet-panel':
+                 App.dom.admin.generateSheetPanel.input.value = '';
+                 break;
+            case '#admin-log-panel': {
+                App.dom.admin.logPanel.container.innerHTML = `<div class="loading-spinner" style="margin: 20px auto;"></div>`;
+                API.getAutomationLogs().then(result => {
+                    if (result.success) {
+                        UI.renderAutomationLog(result.logs);
+                    } else {
+                        App.dom.admin.logPanel.container.innerHTML = `<p style="color: var(--color-text-secondary); text-align: center;">Error loading logs.</p>`;
+                    }
+                });
+                break;
+            }
+         }
+    },
+    setupAdminEntryPanel(title, currentValue) {
+        const { addEntryPanel } = App.dom.admin;
+        addEntryPanel.titleHeader.textContent = title;
+        addEntryPanel.input.value = currentValue;
+
+        const isEditMode = App.state.adminEditContext?.mode === 'edit';
+        addEntryPanel.typeSelect.parentElement.style.display = isEditMode ? 'none' : 'flex';
+        
+        if (!isEditMode) {
+            App.state.adminEditContext = { mode: 'add' };
+            const logMap = [ { key: 'clockIn', label: 'Clock In' }, { key: 'breakOut', label: 'Break Out' }, { key: 'breakIn', label: 'Break In' }, { key: 'lunchOut', label: 'Lunch Out' }, { key: 'lunchIn', label: 'Lunch In' }, { key: 'clockOut', label: 'Clock Out' }];
+            addEntryPanel.typeSelect.innerHTML = logMap.map(i => `<option value="${i.key}">${i.label}</option>`).join('');
+        }
+    },
+    showAdminHoverPanel(targetId, popup, onShow) {
+        const { panelsContainer } = App.dom.admin;
+        const currentlyVisible = panelsContainer.querySelector('.admin-panel.show');
+        const targetPanel = panelsContainer.querySelector(targetId);
+
+        if (currentlyVisible && currentlyVisible !== targetPanel) {
+            currentlyVisible.classList.remove('show', 'is-sticky');
+        }
+
+        if (targetPanel && !targetPanel.classList.contains('show')) {
+            const popupRect = popup.getBoundingClientRect();
+            targetPanel.style.top = `${popupRect.top}px`;
+            targetPanel.style.left = `${popupRect.right + 8}px`;
+            
+            this.prepareAdminPanel(targetId);
+            targetPanel.classList.add('show');
+            if (onShow) onShow(targetPanel);
+        }
+    },
+    showAdminSlidePanel(targetId, callback) {
+        const targetPanel = App.dom.admin.panelsContainer.querySelector(targetId);
+        if(callback) callback(); else this.prepareAdminPanel(targetId);
+        targetPanel.classList.add('show');
+        App.dom.admin.adminPanelBackdrop.classList.add('is-visible');
+        App.dom.admin.panelPopup.classList.remove('show');
+    },
+    hideAdminSlidePanel() {
+        App.dom.admin.panelsContainer.querySelectorAll('.admin-panel.show').forEach(p => {
+            p.classList.remove('show', 'is-sticky');
+        });
+        App.dom.admin.adminPanelBackdrop.classList.remove('is-visible');
+        App.state.adminEditContext = null;
+        App.state.adminPanelLocked = false;
+    },
+    updateSettingsPanel(prefs) {
+        const { settingsPanel, automationPanel } = App.dom.admin;
+        settingsPanel.telegramIdInput.value = prefs.telegramChatId || '';
+        settingsPanel.enableNotifsToggle.checked = prefs.enableNotifications !== 'false';
+        settingsPanel.clockInReminderInput.value = prefs.clockInReminderTime || '';
+        
+        automationPanel.enableAutoClockOutToggle.checked = prefs.enableAutoClockOut === 'true';
+        automationPanel.autoClockOutDurationInput.value = prefs.autoClockOutDuration || '8';
+        automationPanel.enableAutoEndBreakToggle.checked = prefs.enableAutoEndBreak === 'true';
+        automationPanel.autoEndBreakDurationInput.value = prefs.autoEndBreakDuration || '15';
+        automationPanel.enableAutoEndLunchToggle.checked = prefs.enableAutoEndLunch === 'true';
+        automationPanel.autoEndLunchDurationInput.value = prefs.autoEndLunchDuration || '60';
+
+        automationPanel.timedActionsList.innerHTML = '';
+        try {
+            const triggers = JSON.parse(prefs.timedActionTriggers || '[]');
+            if (Array.isArray(triggers)) {
+                triggers.forEach(trigger => this.renderTimedActionTrigger(trigger, false));
+            }
+        } catch(e) { console.error("Could not parse timed action triggers", e); }
+    },
+    renderTimedActionTrigger(trigger = {}, doSave = true) {
+        const { timedActionsList } = App.dom.admin.automationPanel;
+        const div = document.createElement('div');
+        div.className = 'timed-action-row';
+        
+        const enabled = trigger.enabled !== false; // default to true
+        const action = trigger.action || 'clockOut';
+        const time = trigger.time || '17:00';
+
+        div.innerHTML = `
+            <input type="checkbox" class="trigger-enabled" ${enabled ? 'checked' : ''} style="height: 20px;">
+            <select class="trigger-action">
+                <option value="clockIn" ${action === 'clockIn' ? 'selected' : ''}>Clock In</option>
+                <option value="breakOut" ${action === 'breakOut' ? 'selected' : ''}>Start Break</option>
+                <option value="breakIn" ${action === 'breakIn' ? 'selected' : ''}>End Break</option>
+                <option value="lunchOut" ${action === 'lunchOut' ? 'selected' : ''}>Start Lunch</option>
+                <option value="lunchIn" ${action === 'lunchIn' ? 'selected' : ''}>End Lunch</option>
+                <option value="clockOut" ${action === 'clockOut' ? 'selected' : ''}>Clock Out</option>
+            </select>
+            <input type="time" class="trigger-time" value="${time}">
+            <button class="admin-action-btn delete-timed-action-btn"><i class="icon" data-icon="trash" style="pointer-events: none;"></i></button>
+        `;
+        timedActionsList.appendChild(div);
+        if (doSave) {
+            App.saveTimedActionTriggers();
+        }
+    },
+    performOptimisticUpdate(action) {
+        const tempState = App.state.currentUser;
+        const timeString = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+        const actions = { clockIn: 'Working', breakOut: 'OnBreak', breakIn: 'Working', lunchOut: 'OnLunch', lunchIn: 'Working', clockOut: 'Offline' };
+        if (actions[action]) {
+            tempState.status = actions[action];
+            tempState.timeEntries[action] = timeString;
+            tempState.activeLogKey = action;
+            tempState.lastActionTimestamp = Date.now();
+        }
+        this.renderDashboard(tempState);
+        App.state.loadTimestamp = Date.now();
+    },
+    async updateProfilePic(imgEl, fileId) {
+        const defaultPic = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjOWNhM2FmIj4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjM1IiByPSIyMCIvPgogIDxwYXRoIGQ9Ik01MCA2MCBDIDMwIDYwLCAyMCA4MCwgMjAgMTAwIEwgODAgMTAwIEMgODAgODAsIDcwIDYwLCA1MCA2MCBaIi8+Cjwvc3ZnPg==';
+        imgEl.src = defaultPic;
+        if (!fileId || fileId === 'null') return;
+
+        // Show loading state
+        imgEl.classList.add('loading');
+
+        try {
+            const { dataUrl } = await API.getProfilePicDataUrl(fileId);
+            imgEl.src = dataUrl;
+        } catch (e) {
+            console.error('Failed to load profile pic:', e);
+        } finally {
+            // Remove loading state
+            imgEl.classList.remove('loading');
+        }
+    },
+    loadAllVisibleProfilePictures() { document.querySelectorAll('img.profile-pic[data-pic-fileid]').forEach(img => this.updateProfilePic(img, img.dataset.picFileid)); },
+    showAnnouncementBanner(event) {
+        if (sessionStorage.getItem('dismissedEvent_' + event.id)) {
+            return;
+        }
+        const { banner, text, gmeetBtn, closeBtn } = App.dom.announcement;
+        const startTime = new Date(event.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+        
+        text.textContent = `${event.title} at ${startTime}.`;
+        
+        if (event.gmeetLink) {
+            gmeetBtn.href = event.gmeetLink;
+            gmeetBtn.style.display = 'inline-block';
+        } else {
+            gmeetBtn.style.display = 'none';
+        }
+        
+        closeBtn.dataset.eventId = event.id;
+        banner.style.display = 'flex';
+    },
+    hideAnnouncementBanner(eventId) {
+        App.dom.announcement.banner.style.display = 'none';
+        if (eventId) {
+            sessionStorage.setItem('dismissedEvent_' + eventId, 'true');
+        }
+    },
+    showToast(message, type = 'info', duration = 4000) {
+        const container = document.getElementById('toast-container'); const toast = document.createElement('div');
+        toast.className = `toast-message toast-${type}`; toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => { toast.classList.remove('show'); toast.addEventListener('transitionend', () => toast.remove()); }, duration);
+    }
+});
+
+const Customize = {
+    // Predefined backgrounds from Google Drive - available to all users
+    // Add your Google Drive file IDs and names here
+    predefinedBackgrounds: [
+        { id: '138uQpHypRxoEupu69PGQZttUDi5BkZ8s', name: 'LGrey', theme: 'light', themeId: 'default' },
+        { id: '15qNMRqLqrjk5EPYNBx8tGlz1pWT_f-Za', name: 'LBlue', theme: 'light', themeId: 'blue' },
+        { id: '11pnS9lQCYDJ1ijDQNZHQjMPo8-JTkeET', name: 'LGreen', theme: 'light', themeId: 'green' },
+        { id: '1e2DU_R1bX9wZ1ahj-3sTzDuyMpkRSZGW', name: 'LPink', theme: 'light', themeId: 'pink' },
+        { id: '19swD4GyOYCa9DXCgODDbGh4vhDrkRWfW', name: 'Dark', theme: 'dark', themeId: 'default' },
+        { id: '1IB03TxqJSKTJSQWfzP27lD5VQ0sLIGNN', name: 'DBlue', theme: 'dark', themeId: 'blue' },
+        { id: '1NGZrwEGNBYRRKwwbFpgpi9qftyAMxh0C', name: 'DGreen', theme: 'dark', themeId: 'green' },
+        { id: '1pnJ5pGjj8rmlHhUasSjTHwfcNWtd63Fj', name: 'Dpink', theme: 'dark', themeId: 'pink' },
+    ],
+
+    themes: {
+        light: [
+            {
+                id: 'default',
+                name: 'Default',
+                text: '#18181B',
+                greyWindow: '#F4F4F5',
+                whiteWindow: '#FFFFFF',
+                buttons: '#0071dc'
+            },
+            {
+                id: 'blue',
+                name: 'Blue',
+                text: '#3a5e98',
+                greyWindow: '#e6e9f3',
+                whiteWindow: '#f9f9ff',
+                buttons: '#d6e3ff'
+            },
+            {
+                id: 'green',
+                name: 'Green',
+                text: '#3b6930',
+                greyWindow: '#e4ecdc',
+                whiteWindow: '#f8fbf1',
+                buttons: '#bbf1a9'
+            },
+            {
+                id: 'pink',
+                name: 'Pink',
+                text: '#924759',
+                greyWindow: '#f2e6eb',
+                whiteWindow: '#fff8f7',
+                buttons: '#ffd9df'
+            }
+        ],
+        dark: [
+            {
+                id: 'default',
+                name: 'Default',
+                text: '#F4F4F5',
+                greyWindow: '#27272A',
+                whiteWindow: '#18181B',
+                buttons: '#0071dc'
+            },
+            {
+                id: 'blue',
+                name: 'Dark Blue',
+                text: '#aac7ff',
+                greyWindow: '#1d2636',
+                whiteWindow: '#333c4d',
+                buttons: '#1f467e'
+            },
+            {
+                id: 'green',
+                name: 'Dark Green',
+                text: '#a0d490',
+                greyWindow: '#1c2918',
+                whiteWindow: '#313f2c',
+                buttons: '#23501b'
+            },
+            {
+                id: 'pink',
+                name: 'Dark Pink',
+                text: '#ffb1c0',
+                greyWindow: '#371f24',
+                whiteWindow: '#4f3439',
+                buttons: '#753041'
+            }
+        ]
+    },
+
+    async init() {
+        this.renderThemeCards();
+        this.loadBackgrounds();
+        await this.loadSavedCustomization();
+    },
+
+    renderThemeCards() {
+        const grid = App.dom.customize.themeCardsGrid;
+        const currentMode = document.body.dataset.theme || 'light';
+        const themes = this.themes[currentMode];
+
+        grid.innerHTML = themes.map(theme => `
+            <div class="theme-card" data-theme-id="${theme.id}">
+                <div class="theme-split-circle">
+                    <div class="circle-top" style="background-color: ${theme.text};"></div>
+                    <div class="circle-bottom">
+                        <div class="circle-bottom-left" style="background-color: ${theme.greyWindow};"></div>
+                        <div class="circle-bottom-right" style="background-color: ${theme.buttons};"></div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        grid.querySelectorAll('.theme-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const themeId = card.dataset.themeId;
+                this.applyTheme(themeId);
+            });
+        });
+    },
+
+    applyTheme(themeId, silent = false) {
+        const currentMode = document.body.dataset.theme || 'light';
+        const theme = this.themes[currentMode].find(t => t.id === themeId);
+        if (!theme) return;
+
+        // Set theme ID as data attribute for CSS targeting
+        document.body.dataset.themeId = themeId;
+
+        // Apply all color variables to body element to override CSS defaults
+        document.body.style.setProperty('--color-text-primary', theme.text);
+        document.body.style.setProperty('--color-text-secondary', this.adjustOpacity(theme.text, 0.7));
+        document.body.style.setProperty('--color-surface-secondary', theme.greyWindow);
+        document.body.style.setProperty('--color-surface', theme.whiteWindow);
+        document.body.style.setProperty('--color-bg', theme.whiteWindow);
+        document.body.style.setProperty('--color-brand', theme.buttons);
+
+        // Update border colors to match theme
+        const borderColor = this.adjustOpacity(theme.text, 0.1);
+        document.body.style.setProperty('--color-border', borderColor);
+
+        // Apply default background color using theme's first color (text color)
+        // Only if there's no custom background image
+        if (!document.body.classList.contains('has-custom-bg')) {
+            document.body.style.backgroundColor = theme.text;
+        }
+
+        // Update active state
+        App.dom.customize.themeCardsGrid.querySelectorAll('.theme-card').forEach(card => {
+            card.classList.toggle('active', card.dataset.themeId === themeId);
+        });
+
+        // Save preference (don't save if silent mode, likely on page load)
+        if (!silent) {
+            // Merge with existing saved data to preserve selectedBackground
+            this.saveCustomization({ ...this.getSavedCustomization(), selectedTheme: themeId, customColors: null });
+            UI.showToast(`${theme.name} theme applied!`, 'success');
+        }
+    },
+
+    adjustOpacity(hexColor, opacity) {
+        const num = parseInt(hexColor.replace('#', ''), 16);
+        const r = (num >> 16);
+        const g = (num >> 8 & 0x00FF);
+        const b = (num & 0x0000FF);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    },
+
+    async loadBackgrounds() {
+        const grid = App.dom.customize.backgroundGrid;
+        const defaultCard = grid.querySelector('.default-card');
+        const uploadCard = grid.querySelector('.upload-card');
+
+        // Render ALL predefined backgrounds (no filtering - show all wallpapers)
+        const predefinedLoadingCards = this.predefinedBackgrounds.map(bg =>
+            `<div class="background-card loading predefined-bg" data-bg-id="${bg.id}" data-bg-name="${bg.name}" data-theme="${bg.theme}" data-theme-id="${bg.themeId}">
+                <div class="bg-label">${bg.name}</div>
+            </div>`
+        ).join('');
+
+        try {
+            const result = await API.getBackgroundImages();
+
+            if (result.success && result.images && result.images.length > 0) {
+                // Render loading placeholders for user backgrounds
+                const userLoadingCards = result.images.map(img =>
+                    `<div class="background-card loading" data-bg-id="${img.id}" data-user-bg="true">
+                        <button class="delete-bg-btn" data-delete-id="${img.id}" onclick="Customize.deleteBackground('${img.id}', event)">
+                            <i class="icon" data-icon="trash"></i>
+                        </button>
+                    </div>`
+                );
+
+                // Render: default + upload + predefined + user backgrounds
+                grid.innerHTML = defaultCard.outerHTML + uploadCard.outerHTML + predefinedLoadingCards + userLoadingCards.join('');
+
+                // Load user images asynchronously
+                result.images.forEach(async (img) => {
+                    const card = grid.querySelector(`[data-bg-id="${img.id}"][data-user-bg="true"]`);
+                    if (!card) return;
+
+                    try {
+                        const dataUrl = await API.getProfilePicDataUrl(img.id);
+                        if (dataUrl.success) {
+                            card.style.backgroundImage = `url('${dataUrl.dataUrl}')`;
+                            card.classList.remove('loading');
+
+                            // Add click listener
+                            card.addEventListener('click', (e) => {
+                                if (!e.target.closest('.delete-bg-btn')) {
+                                    this.applyBackground(card.dataset.bgId, card.style.backgroundImage);
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Failed to load background:', e);
+                        card.classList.remove('loading');
+                    }
+                });
+            } else {
+                // No user backgrounds, just render default + upload + predefined
+                grid.innerHTML = defaultCard.outerHTML + uploadCard.outerHTML + predefinedLoadingCards;
+            }
+
+            // Re-attach default and upload card listeners
+            grid.querySelector('.default-card').addEventListener('click', () => Customize.removeBackground());
+            grid.querySelector('.upload-card').addEventListener('click', () => App.dom.customize.backgroundUploadInput.click());
+
+            // Load predefined backgrounds from Google Drive with delay to avoid 429 errors
+            this.predefinedBackgrounds.forEach(async (bg, index) => {
+                const card = grid.querySelector(`[data-bg-id="${bg.id}"].predefined-bg`);
+                if (!card) return;
+
+                // Add 300ms delay between each request to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, index * 300));
+
+                try {
+                    const dataUrl = await API.getProfilePicDataUrl(bg.id);
+                    if (dataUrl.success) {
+                        card.style.backgroundImage = `url('${dataUrl.dataUrl}')`;
+                        card.classList.remove('loading');
+
+                        // Add click listener - will auto-apply associated theme
+                        card.addEventListener('click', () => {
+                            this.applyBackground(card.dataset.bgId, card.style.backgroundImage, false, bg);
+                        });
+                    }
+                } catch (e) {
+                    console.error(`Failed to load predefined background '${bg.name}':`, e);
+                    card.classList.remove('loading');
+                    // Show error in label
+                    const label = card.querySelector('.bg-label');
+                    if (label) {
+                        label.textContent = `${bg.name} (Failed to load)`;
+                        label.style.opacity = '1';
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('Error loading backgrounds:', error);
+            // On error, still show predefined backgrounds
+            grid.innerHTML = defaultCard.outerHTML + uploadCard.outerHTML + predefinedLoadingCards;
+
+            grid.querySelector('.default-card').addEventListener('click', () => Customize.removeBackground());
+            grid.querySelector('.upload-card').addEventListener('click', () => App.dom.customize.backgroundUploadInput.click());
+
+            // Try to load predefined backgrounds even if user backgrounds failed (with delay)
+            this.predefinedBackgrounds.forEach(async (bg, index) => {
+                const card = grid.querySelector(`[data-bg-id="${bg.id}"].predefined-bg`);
+                if (!card) return;
+
+                // Add 300ms delay between each request to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, index * 300));
+
+                try {
+                    const dataUrl = await API.getProfilePicDataUrl(bg.id);
+                    if (dataUrl.success) {
+                        card.style.backgroundImage = `url('${dataUrl.dataUrl}')`;
+                        card.classList.remove('loading');
+
+                        card.addEventListener('click', () => {
+                            this.applyBackground(card.dataset.bgId, card.style.backgroundImage, false, bg);
+                        });
+                    }
+                } catch (e) {
+                    console.error(`Failed to load predefined background '${bg.name}':`, e);
+                    card.classList.remove('loading');
+                }
+            });
+        }
+    },
+
+    async deleteBackground(bgId, event) {
+        event.stopPropagation();
+
+        if (!confirm('Delete this background image?')) {
+            return;
+        }
+
+        UI.setLoading(true);
+        try {
+            const result = await API.deleteBackgroundImage(bgId);
+            if (result.success) {
+                // If this was the active background, remove it
+                const saved = this.getSavedCustomization();
+                if (saved.selectedBackground === bgId) {
+                    this.removeBackground();
+                }
+
+                // Reload backgrounds
+                await this.loadBackgrounds();
+                UI.showToast('Background deleted!', 'success');
+            } else {
+                throw new Error(result.error || 'Failed to delete background');
+            }
+        } catch (error) {
+            UI.showToast(`Error: ${error.message}`, 'error');
+        } finally {
+            UI.setLoading(false);
+        }
+    },
+
+    applyBackground(bgId, bgImage, silent = false, bgMetadata = null) {
+        console.log('applyBackground called:', { bgId, bgImagePreview: bgImage?.substring(0, 50) + '...', bgMetadata });
+
+        document.body.style.backgroundImage = bgImage;
+        document.body.style.backgroundColor = ''; // Clear background color when wallpaper is applied
+        document.body.classList.add('has-custom-bg');
+
+        // If this is a predefined background, apply its associated theme
+        if (bgMetadata && bgMetadata.theme && bgMetadata.themeId) {
+            console.log(`Applying predefined background theme: ${bgMetadata.theme} mode, ${bgMetadata.themeId} color`);
+
+            // On page load (silent=true), respect user's saved theme preference
+            // Only auto-apply predefined theme if user is manually selecting bg (silent=false) OR no saved theme exists
+            const saved = this.getSavedCustomization();
+            const shouldApplyPredefinedTheme = !silent || !saved.selectedTheme;
+
+            if (shouldApplyPredefinedTheme) {
+                // Switch to the correct theme mode (light/dark) if needed
+                const currentMode = document.body.dataset.theme || 'light';
+                if (currentMode !== bgMetadata.theme) {
+                    App.setTheme(bgMetadata.theme);
+                }
+
+                // Apply the associated color theme (pass silent to prevent toast on load)
+                this.applyTheme(bgMetadata.themeId, silent);
+            } else {
+                console.log('Skipping predefined theme: respecting user saved theme preference');
+            }
+        } else {
+            // Only use auto-detect for user-uploaded backgrounds
+            const urlMatch = bgImage.match(/url\(['"]?([^'"]+)['"]?\)/);
+            if (urlMatch && urlMatch[1]) {
+                // On page load (silent=true), respect user's saved theme preference
+                // Only auto-detect if user is manually selecting bg (silent=false) OR no saved theme exists
+                const saved = this.getSavedCustomization();
+                const shouldAutoDetect = !silent || !saved.selectedTheme;
+
+                if (shouldAutoDetect) {
+                    this.detectImageBrightness(urlMatch[1], silent);
+                } else {
+                    console.log('Skipping auto-detect: respecting user saved theme preference');
+                }
+            }
+        }
+
+        // Update active state
+        App.dom.customize.backgroundGrid.querySelectorAll('.background-card').forEach(card => {
+            card.classList.toggle('active', card.dataset.bgId === bgId);
+        });
+
+        // Save only the background ID (not the full image data) to avoid localStorage quota issues
+        // The image is already cached in CacheManager, so we can fetch it on page load
+        const dataToSave = { ...this.getSavedCustomization(), selectedBackground: bgId };
+        console.log('Saving customization with background ID:', bgId);
+        this.saveCustomization(dataToSave);
+
+        // Verify it was saved
+        const verified = this.getSavedCustomization();
+        console.log('Verified saved background ID:', verified.selectedBackground);
+
+        // Only show toast if not silent (not on initial load)
+        if (!silent) {
+            UI.showToast('Background applied!', 'success');
+        }
+    },
+
+    removeBackground() {
+        document.body.style.backgroundImage = '';
+        document.body.classList.remove('has-custom-bg');
+        document.body.classList.remove('dark-bg');
+        delete document.body.dataset.bgBrightness;
+
+        // Apply theme's first color as background color
+        const saved = this.getSavedCustomization();
+        const currentMode = document.body.dataset.theme || 'light';
+        const themeId = saved.selectedTheme || 'default';
+        const theme = this.themes[currentMode].find(t => t.id === themeId);
+        if (theme) {
+            document.body.style.backgroundColor = theme.text;
+        }
+
+        // Set default card as active, remove active from others
+        App.dom.customize.backgroundGrid.querySelectorAll('.background-card').forEach(card => {
+            card.classList.toggle('active', card.classList.contains('default-card'));
+        });
+
+        this.saveCustomization({ ...this.getSavedCustomization(), selectedBackground: null });
+        UI.showToast('Background removed!', 'success');
+    },
+
+    detectImageBrightness(imageUrl, silent = false) {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            try {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                let colorSum = 0;
+                const colorBuckets = {};
+                let totalSaturatedPixels = 0;
+
+                // Analyze each pixel
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const a = data[i + 3];
+
+                    // Skip transparent pixels
+                    if (a < 128) continue;
+
+                    // Calculate brightness
+                    const pixelBrightness = (r + g + b) / 3;
+                    colorSum += pixelBrightness;
+
+                    // Skip very dark or very bright pixels for color analysis
+                    // They don't contribute meaningful color information
+                    if (pixelBrightness < 30 || pixelBrightness > 225) continue;
+
+                    // Convert RGB to HSL to get hue
+                    const hsl = this.rgbToHsl(r, g, b);
+                    const hue = hsl.h;
+                    const saturation = hsl.s;
+
+                    // Only count pixels with sufficient saturation (colored pixels)
+                    if (saturation > 0.15) {
+                        totalSaturatedPixels++;
+
+                        // Group hues into buckets for dominant color detection
+                        // Pink/Red: 330-360 and 0-30
+                        // Green: 90-150
+                        // Blue: 180-270
+                        let colorBucket;
+                        if ((hue >= 330 && hue <= 360) || (hue >= 0 && hue < 30)) {
+                            colorBucket = 'pink';
+                        } else if (hue >= 90 && hue < 150) {
+                            colorBucket = 'green';
+                        } else if (hue >= 180 && hue < 270) {
+                            colorBucket = 'blue';
+                        } else {
+                            colorBucket = 'other';
+                        }
+
+                        colorBuckets[colorBucket] = (colorBuckets[colorBucket] || 0) + 1;
+                    }
+                }
+
+                // Calculate overall brightness for theme selection
+                const brightness = colorSum / (data.length / 4);
+                const isDark = brightness < 128;
+
+                // Sample the CENTER region where dashboard sits for localized brightness
+                // Dashboard is typically in center-left to center area
+                const centerX = Math.floor(canvas.width * 0.3);  // Start at 30% from left
+                const centerY = Math.floor(canvas.height * 0.3); // Start at 30% from top
+                const regionWidth = Math.floor(canvas.width * 0.4);  // Sample 40% width
+                const regionHeight = Math.floor(canvas.height * 0.5); // Sample 50% height
+
+                const centerRegion = ctx.getImageData(centerX, centerY, regionWidth, regionHeight);
+                const centerData = centerRegion.data;
+                let centerColorSum = 0;
+                let centerPixelCount = 0;
+
+                for (let i = 0; i < centerData.length; i += 4) {
+                    const a = centerData[i + 3];
+                    if (a < 128) continue; // Skip transparent
+
+                    const r = centerData[i];
+                    const g = centerData[i + 1];
+                    const b = centerData[i + 2];
+                    centerColorSum += (r + g + b) / 3;
+                    centerPixelCount++;
+                }
+
+                const centerBrightness = centerColorSum / centerPixelCount;
+                const centerIsDark = centerBrightness < 140; // Slightly higher threshold for center
+
+                // Store both overall and center brightness info
+                document.body.dataset.bgBrightness = isDark ? 'dark' : 'light';
+                document.body.dataset.bgCenterBrightness = centerIsDark ? 'dark' : 'light';
+
+                // Adjust dashboard text colors based on CENTER region brightness
+                // This ensures dashboard is readable regardless of edges
+                if (centerIsDark) {
+                    document.body.classList.add('dark-bg');
+                } else {
+                    document.body.classList.remove('dark-bg');
+                }
+
+                console.log('Brightness analysis:', {
+                    overall: brightness.toFixed(1),
+                    center: centerBrightness.toFixed(1),
+                    overallDark: isDark,
+                    centerDark: centerIsDark
+                });
+
+                // Determine dominant color and auto-select theme based on OVERALL brightness
+                this.autoSelectThemeByColor(colorBuckets, totalSaturatedPixels, isDark, silent);
+
+            } catch (e) {
+                console.log('Could not analyze image:', e);
+            }
+        };
+        img.onerror = () => {
+            console.log('Failed to load image for brightness detection');
+        };
+        img.src = imageUrl;
+    },
+
+    rgbToHsl(r, g, b) {
+        r /= 255;
+        g /= 255;
+        b /= 255;
+
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+
+        if (max === min) {
+            h = s = 0; // achromatic (grayscale)
+        } else {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+            switch (max) {
+                case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+                case g: h = ((b - r) / d + 2) / 6; break;
+                case b: h = ((r - g) / d + 4) / 6; break;
+            }
+        }
+
+        return {
+            h: h * 360, // Convert to degrees (0-360)
+            s: s,
+            l: l
+        };
+    },
+
+    autoSelectThemeByColor(colorBuckets, totalSaturatedPixels, isDark, silent = false) {
+        // If less than 10% of pixels are saturated, image is mostly grayscale
+        // Use default theme
+        const pixelCount = totalSaturatedPixels;
+        if (pixelCount < 100) {
+            console.log('Image is mostly grayscale, using default theme');
+            // First switch to appropriate mode based on brightness
+            App.setTheme(isDark ? 'dark' : 'light');
+            // Then apply default color theme (pass silent to prevent toast on load)
+            this.applyTheme('default', silent);
+            return;
+        }
+
+        // Find the dominant color
+        let dominantColor = 'default';
+        let maxCount = 0;
+
+        for (const [color, count] of Object.entries(colorBuckets)) {
+            if (count > maxCount && color !== 'other') {
+                maxCount = count;
+                dominantColor = color;
+            }
+        }
+
+        // Require at least 20% of saturated pixels to be in dominant color bucket
+        const dominanceThreshold = pixelCount * 0.2;
+        if (maxCount < dominanceThreshold) {
+            console.log('No clear dominant color, using default theme');
+            dominantColor = 'default';
+        }
+
+        console.log('Color analysis:', {
+            colorBuckets,
+            totalSaturatedPixels,
+            dominantColor,
+            isDark,
+            selectedMode: isDark ? 'dark' : 'light',
+            selectedTheme: dominantColor
+        });
+
+        // First switch to appropriate mode (dark/light) based on background brightness
+        App.setTheme(isDark ? 'dark' : 'light');
+
+        // Then apply the color theme (will use dark/light variant based on mode)
+        this.applyTheme(dominantColor, silent);
+
+        // Show toast with both mode and color (only if not silent)
+        if (!silent) {
+            const modeName = isDark ? 'Dark' : 'Light';
+            const colorName = dominantColor.charAt(0).toUpperCase() + dominantColor.slice(1);
+            UI.showToast(`${colorName} ${modeName} theme auto-selected!`, 'success');
+        }
+    },
+
+    /**
+     * Compresses an image file to reduce size for upload and caching
+     * @param {File} file - The image file to compress
+     * @param {number} maxWidth - Maximum width (default: 1920)
+     * @param {number} maxHeight - Maximum height (default: 1080)
+     * @param {number} quality - JPEG quality 0-1 (default: 0.8)
+     * @returns {Promise<string>} - Base64 data URL of compressed image
+     */
+    compressImage(file, maxWidth = 1920, maxHeight = 1080, quality = 0.8) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Calculate new dimensions maintaining aspect ratio
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth || height > maxHeight) {
+                        const aspectRatio = width / height;
+                        if (width > height) {
+                            width = maxWidth;
+                            height = width / aspectRatio;
+                        } else {
+                            height = maxHeight;
+                            width = height * aspectRatio;
+                        }
+                    }
+
+                    // Create canvas and compress
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+
+                    // Use better image quality
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Convert to base64 with compression
+                    // Use JPEG for better compression, fallback to PNG if needed
+                    const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                    const dataUrl = canvas.toDataURL(mimeType, quality);
+
+                    resolve(dataUrl);
+                };
+                img.onerror = () => reject(new Error('Failed to load image'));
+                img.src = e.target.result;
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
+    },
+
+    async handleBackgroundUpload(event) {
+        const file = event.target.files[0];
+        if (!file || !file.type.startsWith('image/')) {
+            UI.showToast('Please select a valid image file', 'error');
+            return;
+        }
+
+        UI.setLoading(true);
+
+        try {
+            // Compress image before upload to reduce size for caching
+            const compressedDataUrl = await this.compressImage(file);
+            const [header, base64Data] = compressedDataUrl.split(',');
+            const mimeType = header.match(/:(.*?);/)[1];
+
+            // Calculate approximate size for user feedback
+            const sizeInBytes = base64Data.length * 0.75; // Approximate base64 to bytes
+            const sizeInKB = Math.round(sizeInBytes / 1024);
+
+            console.log(`Compressed image size: ~${sizeInKB}KB`);
+
+            const result = await API.saveBackgroundImage(base64Data, mimeType);
+            if (result.success) {
+                UI.showToast('Background uploaded successfully!', 'success');
+                await this.loadBackgrounds();
+                // Apply background with proper CSS url() format
+                this.applyBackground(result.fileId, `url('${compressedDataUrl}')`);
+            } else {
+                throw new Error(result.error || 'Failed to upload background');
+            }
+        } catch (error) {
+            UI.showToast(`Error: ${error.message}`, 'error');
+        } finally {
+            UI.setLoading(false);
+            event.target.value = null;
+        }
+    },
+
+    toggleCustomize(event) {
+        const sidebar = App.dom.customize.sidebar;
+        const isCurrentlyVisible = sidebar.classList.contains('is-visible');
+        const isDesktop = window.innerWidth > 768;
+
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+
+        // Close other popups and sidebars
+        document.querySelectorAll('.popup-menu.show').forEach(p => p.classList.remove('show'));
+        UI.toggleAdminMenuSidebar(false);
+
+        if (!isCurrentlyVisible) {
+            sidebar.classList.add('is-visible');
+
+            // On desktop, position as popup
+            if (isDesktop && event && App.dom.customize.trigger) {
+                const rect = App.dom.customize.trigger.getBoundingClientRect();
+                sidebar.style.top = `${rect.bottom + 8}px`;
+                sidebar.style.right = `${window.innerWidth - rect.right}px`;
+            } else if (!isDesktop) {
+                // On mobile, show backdrop
+                document.getElementById('sidebar-backdrop').classList.add('is-visible');
+            }
+        } else {
+            sidebar.classList.remove('is-visible');
+            document.getElementById('sidebar-backdrop').classList.remove('is-visible');
+        }
+    },
+
+    // Keep old function for compatibility
+    toggleSidebar(show) {
+        this.toggleCustomize(show ? {} : null);
+    },
+
+    saveCustomization(data) {
+        try {
+            const jsonString = JSON.stringify(data);
+            console.log('Attempting to save to localStorage, size:', jsonString.length, 'bytes');
+            localStorage.setItem('timetracker_customization', jsonString);
+            console.log('Successfully saved to localStorage');
+        } catch (e) {
+            console.error('Failed to save customization to localStorage:', e);
+            if (e.name === 'QuotaExceededError') {
+                console.error('localStorage quota exceeded! Background image too large.');
+                UI.showToast('Background image is too large to save. Please choose a smaller image.', 'error');
+
+                // Try to save without the background image
+                const dataWithoutBg = { ...data };
+                delete dataWithoutBg.backgroundImage;
+                delete dataWithoutBg.selectedBackground;
+                try {
+                    localStorage.setItem('timetracker_customization', JSON.stringify(dataWithoutBg));
+                    console.log('Saved customization without background image');
+                } catch (e2) {
+                    console.error('Failed to save even without background:', e2);
+                }
+            }
+        }
+    },
+
+    getSavedCustomization() {
+        const saved = localStorage.getItem('timetracker_customization');
+        return saved ? JSON.parse(saved) : {};
+    },
+
+    async loadSavedCustomization() {
+        const saved = this.getSavedCustomization();
+        console.log('Loading saved customization:', saved);
+
+        // Apply saved background by fetching it from cache/Drive using the ID
+        if (saved.selectedBackground) {
+            console.log('Restoring background ID:', saved.selectedBackground);
+
+            // Check if this is a predefined background
+            const predefinedBg = this.predefinedBackgrounds.find(bg => bg.id === saved.selectedBackground);
+
+            try {
+                // Try to get the background image from cache or Drive
+                const result = await API.getProfilePicDataUrl(saved.selectedBackground);
+                if (result.success && result.dataUrl) {
+                    const bgImage = `url('${result.dataUrl}')`;
+
+                    // Use the proper applyBackground function to ensure persistence
+                    // Pass silent=true to avoid showing toast on page load
+                    this.applyBackground(saved.selectedBackground, bgImage, true, predefinedBg);
+
+                    console.log('Background restored successfully from cache/Drive');
+                } else {
+                    console.warn('Failed to restore background, image not found - keeping preference for retry');
+                    // Don't clear the saved background - it might load next time
+                    // Only clear if user explicitly removes it or deletes the image
+                }
+            } catch (e) {
+                console.error('Error restoring background (will retry on next load):', e);
+                // Don't clear the saved background on temporary errors
+                // The preference is kept so it can retry on next page load
+            }
+
+            // Set active state on the correct background card after grid loads
+            setTimeout(() => {
+                App.dom.customize.backgroundGrid.querySelectorAll('.background-card').forEach(card => {
+                    card.classList.toggle('active', card.dataset.bgId === saved.selectedBackground);
+                });
+            }, 200);
+        } else {
+            console.log('No background saved, using default');
+
+            // Apply theme (saved or default) to set background color
+            const themeId = saved.selectedTheme || 'default';
+            const silent = true; // Don't show toast on page load
+
+            // Apply theme with background color
+            const currentMode = document.body.dataset.theme || 'light';
+            const theme = this.themes[currentMode].find(t => t.id === themeId);
+            if (theme) {
+                // Apply all color variables
+                document.body.style.setProperty('--color-text-primary', theme.text);
+                document.body.style.setProperty('--color-text-secondary', this.adjustOpacity(theme.text, 0.7));
+                document.body.style.setProperty('--color-surface-secondary', theme.greyWindow);
+                document.body.style.setProperty('--color-surface', theme.whiteWindow);
+                document.body.style.setProperty('--color-bg', theme.whiteWindow);
+                document.body.style.setProperty('--color-brand', theme.buttons);
+                const borderColor = this.adjustOpacity(theme.text, 0.1);
+                document.body.style.setProperty('--color-border', borderColor);
+
+                // Apply background color (no wallpaper)
+                document.body.style.backgroundColor = theme.text;
+
+                // Update active state
+                App.dom.customize.themeCardsGrid.querySelectorAll('.theme-card').forEach(card => {
+                    card.classList.toggle('active', card.dataset.themeId === themeId);
+                });
+
+                // Save if it's the first time (no saved theme)
+                if (!saved.selectedTheme) {
+                    // Merge with existing saved data to preserve any other settings
+                    this.saveCustomization({ ...saved, selectedTheme: themeId, customColors: null });
+                }
+            }
+
+            // Set default card as active if no background is saved
+            setTimeout(() => {
+                const defaultCard = App.dom.customize.backgroundGrid.querySelector('.default-card');
+                if (defaultCard) {
+                    defaultCard.classList.add('active');
+                }
+            }, 200);
+        }
+    }
+};
+
+// Image Cache Manager - speeds up Drive image loading by caching in localStorage
+const CacheManager = {
+    prefix: 'img_cache_',
+    expiryPrefix: 'img_expiry_',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+
+    getCachedImage(fileId) {
+        try {
+            const cachedData = localStorage.getItem(this.prefix + fileId);
+            const expiryTime = localStorage.getItem(this.expiryPrefix + fileId);
+
+            if (!cachedData || !expiryTime) {
+                return null;
+            }
+
+            // Check if cache is expired
+            if (Date.now() > parseInt(expiryTime)) {
+                this.clearCachedImage(fileId);
+                return null;
+            }
+
+            return cachedData;
+        } catch (e) {
+            console.error('Error reading cache:', e);
+            return null;
+        }
+    },
+
+    setCachedImage(fileId, dataUrl) {
+        try {
+            // Don't cache predefined backgrounds (large wallpaper images)
+            // Only cache user-uploaded backgrounds and profile pictures
+            const predefinedIds = [
+                '15AMwSKbnhKGJTBwJOkSQ5kPv_yjoUrKS', // Desk Aesthetic
+                '16CMHSSqKCzMO-3H5Tcv-gkYBNLvyFZIa', // Eyewear Fashion
+                '1VPvaVtlZg3XBN8aHjqCD7LeKcCmNDJlI', // Fresh Prep
+                '1sF2OKXnBJ0dD3XSMlry2QEiVWTDqH-a1', // Minimal Workspace
+                '1yDt4S0ym3cisFzlOhKFe2A8-4xlleHPW', // Stormy Peaks
+                '1ZVCPPhUwtwGZVeinTMYrzXo5ni0BHB5c', // Starry Night
+                '1s_b0p1Tb5qswk2mhe9RuP4HTHQgxeYKL', // Ocean Keeper
+                '1ix8-hhwlQM-sa8-yHnXCM8hhM_g4fWNW'  // Blushing Blooms
+            ];
+
+            if (predefinedIds.includes(fileId)) {
+                console.log('Skipping cache for predefined background:', fileId);
+                return; // Don't cache predefined wallpapers
+            }
+
+            // Check size before caching - skip if too large
+            // localStorage has ~5-10MB limit per domain, so we limit individual images
+            const MAX_CACHE_SIZE_KB = 800; // 800KB limit per image (conservative)
+            const sizeInKB = dataUrl.length / 1024;
+
+            if (sizeInKB > MAX_CACHE_SIZE_KB) {
+                console.warn(`Image too large to cache (${Math.round(sizeInKB)}KB > ${MAX_CACHE_SIZE_KB}KB) - skipping cache for fileId: ${fileId}`);
+                return; // Don't cache oversized images
+            }
+
+            const expiryTime = Date.now() + this.maxAge;
+            localStorage.setItem(this.prefix + fileId, dataUrl);
+            localStorage.setItem(this.expiryPrefix + fileId, expiryTime.toString());
+            console.log(`Cached image (${Math.round(sizeInKB)}KB): ${fileId}`);
+        } catch (e) {
+            console.error('Error setting cache:', e);
+            // If quota exceeded, clear old cache and try one more time
+            if (e.name === 'QuotaExceededError') {
+                console.log('Quota exceeded, clearing old cache...');
+                this.clearOldCache();
+                try {
+                    localStorage.setItem(this.prefix + fileId, dataUrl);
+                    localStorage.setItem(this.expiryPrefix + fileId, (Date.now() + this.maxAge).toString());
+                    console.log('Successfully cached after clearing old entries');
+                } catch (e2) {
+                    console.warn('Still failed after clearing cache - skipping cache for this image:', e2);
+                    // Fail silently - image will just load from Drive next time
+                }
+            }
+        }
+    },
+
+    clearCachedImage(fileId) {
+        try {
+            localStorage.removeItem(this.prefix + fileId);
+            localStorage.removeItem(this.expiryPrefix + fileId);
+        } catch (e) {
+            console.error('Error clearing cache:', e);
+        }
+    },
+
+    clearOldCache() {
+        try {
+            const now = Date.now();
+            const cacheEntries = [];
+
+            // Collect all cache entries with their expiry times
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith(this.expiryPrefix)) {
+                    const expiryTime = parseInt(localStorage.getItem(key));
+                    const fileId = key.replace(this.expiryPrefix, '');
+                    cacheEntries.push({ fileId, expiryTime });
+                }
+            }
+
+            // Sort by expiry time (oldest first)
+            cacheEntries.sort((a, b) => a.expiryTime - b.expiryTime);
+
+            // First, remove all expired entries
+            const expiredEntries = cacheEntries.filter(entry => now > entry.expiryTime);
+            expiredEntries.forEach(entry => this.clearCachedImage(entry.fileId));
+
+            // If still having issues, remove oldest 50% of remaining cache
+            if (expiredEntries.length === 0 && cacheEntries.length > 0) {
+                const halfCount = Math.ceil(cacheEntries.length / 2);
+                const oldestEntries = cacheEntries.slice(0, halfCount);
+                oldestEntries.forEach(entry => this.clearCachedImage(entry.fileId));
+                console.log(`Cleared ${oldestEntries.length} oldest cache entries (50% of total)`);
+            } else {
+                console.log(`Cleared ${expiredEntries.length} expired cache entries`);
+            }
+        } catch (e) {
+            console.error('Error clearing old cache:', e);
+        }
+    },
+
+    clearAllCache() {
+        try {
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith(this.prefix) || key.startsWith(this.expiryPrefix))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            console.log(`Cleared all ${keysToRemove.length / 2} cached images`);
+        } catch (e) {
+            console.error('Error clearing all cache:', e);
+        }
+    }
+};
+
+const API = {
+    _run: (fn, ...a) => new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...a)),
+    getInitialLoadData: (n) => API._run('getInitialLoadData', n),
+    getAllUsersStatus: () => API._run('getAllUsersStatus'),
+    processTimeEntry: (name, action) => API._run('processTimeEntry', name, action),
+
+    // Enhanced with caching for fast subsequent loads
+    async getProfilePicDataUrl(id) {
+        // Check cache first
+        const cached = CacheManager.getCachedImage(id);
+        if (cached) {
+            return { success: true, dataUrl: cached };
+        }
+
+        // Fetch from Drive if not cached
+        try {
+            const result = await API._run('getProfilePicDataUrlForFileId', id);
+            if (result && result.dataUrl) {
+                // Cache the result for next time
+                CacheManager.setCachedImage(id, result.dataUrl);
+                return { success: true, dataUrl: result.dataUrl };
+            }
+            return result;
+        } catch (error) {
+            console.error('Error fetching image from Drive:', error);
+            throw error;
+        }
+    },
+
+    getSpreadsheetUrl: () => API._run('getSpreadsheetUrl'),
+    updateTimeEntry: (row, key, time) => API._run('updateTimeEntry', row, key, time),
+    deleteTimeEntry: (row, key) => API._run('deleteTimeEntry', row, key),
+    recalculateHoursForDate: (name, date) => API._run('recalculateHoursForDate', name, date),
+    sendTestTelegramMessage: (id, name) => API._run('sendTestTelegramMessage', id, name),
+    sendEightHourReminder: (name) => API._run('sendEightHourReminder', name),
+    saveProfilePicture: (name, data, type) => API._run('saveProfilePicture', name, data, type),
+    generateWeekSheet: (weeks) => API._run('generateWeekSheet', weeks),
+    saveUserPreference: (name, key, val) => API._run('saveUserPreference', name, key, val),
+    getAutomationLogs: () => API._run('getAutomationLogs'),
+    clearAutomationLogs: () => API._run('clearAutomationLogs'),
+    getRecentAutomationEvents: () => API._run('getRecentAutomationEvents'),
+    getTodaysCalendarEvents: () => API._run('getTodaysCalendarEvents'),
+    saveBackgroundImage: (data, type) => API._run('saveBackgroundImage', data, type),
+    getBackgroundImages: () => API._run('getBackgroundImages'),
+    deleteBackgroundImage: (fileId) => API._run('deleteBackgroundImage', fileId)
+};
+
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+</body>
+</html>
