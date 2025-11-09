@@ -497,20 +497,32 @@ function processTimeEntry(userName, actionKey, timestamp) {
 }
 
 /**
- * [CORRECTED VERSION] Fetches today's events from the user's primary calendar.
- * This uses the Advanced Calendar Service to reliably get Google Meet links.
- * Uses Session.getEffectiveUser() to access the correct user's calendar when running as owner.
- * @returns {Array} A list of event objects for the frontend.
+ * Calendar integration disabled.
+ * Returns empty array to maintain frontend compatibility.
+ *
+ * Reason: Calendar access requires domain-wide delegation which needs
+ * Google Workspace Admin Console access. Since admin access is not available,
+ * calendar feature has been removed. The main sheet write permission issue
+ * is solved using Session.getEffectiveUser() + "Execute as: Me" deployment.
+ *
+ * To re-enable calendar integration in the future:
+ * 1. Set up domain-wide delegation (requires Workspace Admin)
+ * 2. See SETUP_DOMAIN_WIDE_DELEGATION.md for instructions
+ * 3. Replace this function with the calendar API implementation
+ *
+ * @returns {Array} Empty array (no calendar events)
  */
 function getTodaysCalendarEvents() {
+  // Calendar integration disabled - return empty array
+  return [];
+
+  /* ORIGINAL IMPLEMENTATION (commented out for future use):
   try {
     const userEmail = Session.getEffectiveUser().getEmail();
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    // Use the Advanced Calendar service with the effective user's email
-    // This ensures we access the accessing user's calendar, not the script owner's
     const eventsList = Calendar.Events.list(userEmail, {
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
@@ -522,7 +534,6 @@ function getTodaysCalendarEvents() {
       return [];
     }
 
-    // Filter out all-day events (they have a 'date' property instead of 'dateTime')
     const timedEvents = eventsList.items.filter(event => event.start.dateTime);
 
     return timedEvents.map(event => {
@@ -537,15 +548,16 @@ function getTodaysCalendarEvents() {
       return {
         id: event.id,
         title: event.summary,
-        startTime: event.start.dateTime, // Already in ISO format
-        endTime: event.end.dateTime,     // Already in ISO format
+        startTime: event.start.dateTime,
+        endTime: event.end.dateTime,
         gmeetLink: gmeetLink
       };
     });
   } catch (e) {
-    Logger.log(`Error fetching calendar events for user ${Session.getEffectiveUser().getEmail()}: ${e.toString()}\nStack: ${e.stack}`);
+    Logger.log(`Error fetching calendar events: ${e.toString()}`);
     return [];
   }
+  */
 }
 
 function sanitizeKey_(inputString) { return inputString ? inputString.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') : null; }
