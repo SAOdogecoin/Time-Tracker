@@ -1960,7 +1960,17 @@ Object.assign(App, {
     async loadInitialData(userName) {
         UI.setLoading(true);
         try {
-            const data = await API.getInitialLoadData(userName);
+            // Check if this is the first open of the day
+            const today = new Date().toDateString();
+            const lastOpenDate = localStorage.getItem('lastOpenDate');
+            const isFirstOpenToday = (lastOpenDate !== today);
+
+            // Mark that we've opened the app today
+            if (isFirstOpenToday) {
+                localStorage.setItem('lastOpenDate', today);
+            }
+
+            const data = await API.getInitialLoadData(userName, isFirstOpenToday);
             if (data.nameList) {
                 this.state.users = data.nameList;
                 UI.renderUserSelectionPopup(this.state.users, '');
@@ -3688,7 +3698,7 @@ const CacheManager = {
 
 const API = {
     _run: (fn, ...a) => new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...a)),
-    getInitialLoadData: (n) => API._run('getInitialLoadData', n),
+    getInitialLoadData: (n, isFirstOpen) => API._run('getInitialLoadData', n, isFirstOpen),
     getAllUsersStatus: () => API._run('getAllUsersStatus'),
     processTimeEntry: (name, action) => API._run('processTimeEntry', name, action),
 

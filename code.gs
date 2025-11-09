@@ -196,7 +196,7 @@ function getLastActionTimestamp_(sheet, row, activeLogKey) {
 // Hourly and daily checks have been removed as they were Telegram-dependent
 // Users will receive in-app notifications instead when automation runs
 
-function getInitialLoadData(userName) {
+function getInitialLoadData(userName, isFirstOpenToday) {
   const result = { success: false, nameList: [], initialUserData: null, dynamicGreeting: null, error: null };
   try {
     const allUsersResult = getAllUsersStatus();
@@ -210,7 +210,7 @@ function getInitialLoadData(userName) {
       if (profileDataResult.success) {
         result.initialUserData = profileDataResult.data;
       }
-      result.dynamicGreeting = getDynamicGreeting(initialUserName);
+      result.dynamicGreeting = getDynamicGreeting(initialUserName, isFirstOpenToday);
     }
     result.success = true;
   } catch (e) {
@@ -337,8 +337,9 @@ function processTimeEntry(userName, actionKey, timestamp) {
     if (!updatedProfileResult.success) {
       throw new Error('Failed to retrieve updated user profile after time entry.');
     }
-    
-    const dynamicGreeting = getDynamicGreeting(userName);
+
+    // After time entry actions, greeting should be time-based (not first open)
+    const dynamicGreeting = getDynamicGreeting(userName, false);
 
     return { success: true, updatedUserData: updatedProfileResult.data, dynamicGreeting: dynamicGreeting };
   } catch (error) {
@@ -485,7 +486,7 @@ function getTodaysCalendarEvents() {
 
 function sanitizeKey_(inputString) { return inputString ? inputString.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') : null; }
 
-function getDynamicGreeting(userName) {
+function getDynamicGreeting(userName, isFirstOpenToday = true) {
   try {
     const now = new Date();
     const hour = now.getHours();
@@ -494,7 +495,26 @@ function getDynamicGreeting(userName) {
     const date = now.getDate();
     const firstName = userName ? userName.split(' ')[0] : 'there';
 
-    // Philippine Holidays (with flexible date checking)
+    // Time-based greetings (used as fallback or for subsequent opens)
+    let timeGreeting;
+    if (hour >= 5 && hour < 12) {
+      timeGreeting = 'Good morning';
+    } else if (hour >= 12 && hour < 13) {
+      timeGreeting = 'Good noon';
+    } else if (hour >= 13 && hour < 18) {
+      timeGreeting = 'Good afternoon';
+    } else if (hour >= 18 && hour < 22) {
+      timeGreeting = 'Good evening';
+    } else {
+      timeGreeting = 'Good night';
+    }
+
+    // If this is NOT the first open today, always return time-based greeting
+    if (!isFirstOpenToday) {
+      return { greeting: timeGreeting, name: firstName };
+    }
+
+    // FIRST OPEN OF THE DAY: Priority 1 - Philippine Holidays
     const philippineHolidays = [
       { month: 0, date: 1, greeting: '🎊 Happy New Year' },
       { month: 1, date: 14, greeting: '💝 Happy Valentine\'s Day' },
@@ -533,43 +553,26 @@ function getDynamicGreeting(userName) {
       }
     }
 
-    // Check for special weeks
-    if (month === 11 && date >= 16 && date <= 24) {
+    // Check for special weeks (Christmas season)
+    if (month === 11 && date >= 16 && date <= 23) {
       return { greeting: '🎄 Merry Christmas season', name: firstName };
     }
 
-    // Day-specific greetings
+    // FIRST OPEN OF THE DAY: Priority 2 - Day-specific greetings
     const dayGreetings = {
       0: '🌟 Happy Weekend',       // Sunday
-      1: '💪 Happy Monday',        // Monday (not shown)
-      2: '🚀 Happy Tuesday',       // Tuesday (not shown)
-      3: '⚡ Happy Wednesday',     // Wednesday (not shown)
-      4: '🎯 Happy Thursday',      // Thursday (not shown)
+      1: '💪 Happy Monday',        // Monday
       5: '🎉 Happy Friday',        // Friday
       6: '🌟 Happy Weekend'        // Saturday
     };
 
-    // Time-based greetings
-    let timeGreeting;
-    if (hour >= 5 && hour < 12) {
-      timeGreeting = 'Good morning';
-    } else if (hour >= 12 && hour < 13) {
-      timeGreeting = 'Good noon';
-    } else if (hour >= 13 && hour < 18) {
-      timeGreeting = 'Good afternoon';
-    } else if (hour >= 18 && hour < 22) {
-      timeGreeting = 'Good evening';
-    } else {
-      timeGreeting = 'Good night';
+    // Return day greeting if available (Monday, Friday, Weekend)
+    if (dayGreetings[dayOfWeek]) {
+      return { greeting: dayGreetings[dayOfWeek], name: firstName };
     }
 
-    // Combine: "Good morning! Happy Friday" or just "Good morning"
-    // Use day greeting on Friday (most exciting) and weekends
-    if ([5, 6, 0].includes(dayOfWeek)) {
-      return { greeting: `${timeGreeting}! ${dayGreetings[dayOfWeek]}`, name: firstName };
-    } else {
-      return { greeting: timeGreeting, name: firstName };
-    }
+    // FIRST OPEN OF THE DAY: Priority 3 - Time-based greeting (Tuesday, Wednesday, Thursday)
+    return { greeting: timeGreeting, name: firstName };
 
   } catch (e) {
     Logger.log(`Error in getDynamicGreeting: ${e.toString()}`);
