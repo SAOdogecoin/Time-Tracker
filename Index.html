@@ -2848,7 +2848,6 @@ const Customize = {
         if (!silent) {
             // Merge with existing saved data to preserve selectedBackground
             this.saveCustomization({ ...this.getSavedCustomization(), selectedTheme: themeId, customColors: null });
-            UI.showToast(`${theme.name} theme applied!`, 'success');
         }
     },
 
@@ -3004,7 +3003,6 @@ const Customize = {
 
                 // Reload backgrounds
                 await this.loadBackgrounds();
-                UI.showToast('Background deleted!', 'success');
             } else {
                 throw new Error(result.error || 'Failed to delete background');
             }
@@ -3069,10 +3067,6 @@ const Customize = {
         const verified = this.getSavedCustomization();
         console.log('Verified saved background ID:', verified.selectedBackground);
 
-        // Only show toast if not silent (not on initial load)
-        if (!silent) {
-            UI.showToast('Background applied!', 'success');
-        }
     },
 
     removeBackground() {
@@ -3096,7 +3090,6 @@ const Customize = {
         });
 
         this.saveCustomization({ ...this.getSavedCustomization(), selectedBackground: null });
-        UI.showToast('Background removed!', 'success');
     },
 
     detectImageBrightness(imageUrl, silent = false) {
@@ -3298,13 +3291,6 @@ const Customize = {
 
         // Then apply the color theme (will use dark/light variant based on mode)
         this.applyTheme(dominantColor, silent);
-
-        // Show toast with both mode and color (only if not silent)
-        if (!silent) {
-            const modeName = isDark ? 'Dark' : 'Light';
-            const colorName = dominantColor.charAt(0).toUpperCase() + dominantColor.slice(1);
-            UI.showToast(`${colorName} ${modeName} theme auto-selected!`, 'success');
-        }
     },
 
     /**
@@ -3386,7 +3372,6 @@ const Customize = {
 
             const result = await API.saveBackgroundImage(base64Data, mimeType);
             if (result.success) {
-                UI.showToast('Background uploaded successfully!', 'success');
                 await this.loadBackgrounds();
                 // Apply background with proper CSS url() format
                 this.applyBackground(result.fileId, `url('${compressedDataUrl}')`);
