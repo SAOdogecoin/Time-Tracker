@@ -2694,23 +2694,17 @@ const Customize = {
         if (bgMetadata && bgMetadata.theme && bgMetadata.themeId) {
             console.log(`Applying predefined background theme: ${bgMetadata.theme} mode, ${bgMetadata.themeId} color`);
 
-            // On page load (silent=true), respect user's saved theme preference
-            // Only auto-apply predefined theme if user is manually selecting bg (silent=false) OR no saved theme exists
-            const saved = this.getSavedCustomization();
-            const shouldApplyPredefinedTheme = !silent || !saved.selectedTheme;
+            // For predefined backgrounds, ALWAYS apply the associated theme
+            // This ensures the background and theme are consistent
 
-            if (shouldApplyPredefinedTheme) {
-                // Switch to the correct theme mode (light/dark) if needed
-                const currentMode = document.body.dataset.theme || 'light';
-                if (currentMode !== bgMetadata.theme) {
-                    App.setTheme(bgMetadata.theme);
-                }
-
-                // Apply the associated color theme (pass silent to prevent toast on load)
-                this.applyTheme(bgMetadata.themeId, silent);
-            } else {
-                console.log('Skipping predefined theme: respecting user saved theme preference');
+            // Switch to the correct theme mode (light/dark) if needed
+            const currentMode = document.body.dataset.theme || 'light';
+            if (currentMode !== bgMetadata.theme) {
+                App.setTheme(bgMetadata.theme);
             }
+
+            // Apply the associated color theme (pass silent to prevent toast on load)
+            this.applyTheme(bgMetadata.themeId, silent);
         } else {
             // Only use auto-detect for user-uploaded backgrounds
             const urlMatch = bgImage.match(/url\(['"]?([^'"]+)['"]?\)/);
