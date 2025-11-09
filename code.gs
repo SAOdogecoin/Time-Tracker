@@ -25,9 +25,7 @@ const ASSET_FOLDER_NAME = "Time Tracker Assets";
 
 const PREF_KEYS = {
     CLOCK_IN_REMINDER_TIME: 'clockInReminderTime',
-    SKIP_WEEKEND_AUTOMATION: 'skipWeekendAutomation',
-    CALENDAR_ENABLED: 'calendarEnabled',
-    CALENDAR_SETUP_DISMISSED: 'calendarSetupDismissed'
+    SKIP_WEEKEND_AUTOMATION: 'skipWeekendAutomation'
 };
 
 const LOG_KEYS = {
