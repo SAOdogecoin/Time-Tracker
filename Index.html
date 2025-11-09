@@ -516,6 +516,7 @@
   [data-icon="history"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"%3E%3C/path%3E%3Cpath d="M12 8v4l2 2"%3E%3C/path%3E%3C/svg%3E');}
   [data-icon="shield"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"%3E%3C/path%3E%3C/svg%3E');}
   [data-icon="palette"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Ccircle cx="13.5" cy="6.5" r=".5"%3E%3C/circle%3E%3Ccircle cx="17.5" cy="10.5" r=".5"%3E%3C/circle%3E%3Ccircle cx="8.5" cy="7.5" r=".5"%3E%3C/circle%3E%3Ccircle cx="6.5" cy="12.5" r=".5"%3E%3C/circle%3E%3Cpath d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"%3E%3C/path%3E%3C/svg%3E');}
+  [data-icon="calendar"] { -webkit-mask-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect x="3" y="4" width="18" height="18" rx="2" ry="2"%3E%3C/rect%3E%3Cline x1="16" y1="2" x2="16" y2="6"%3E%3C/line%3E%3Cline x1="8" y1="2" x2="8" y2="6"%3E%3C/line%3E%3Cline x1="3" y1="10" x2="21" y2="10"%3E%3C/line%3E%3C/svg%3E');}
 
 /* ===== START: CUSTOMIZATION PANEL CSS ===== */
   .customize-sidebar {
@@ -884,10 +885,28 @@
       margin-right: 8px;
       max-width: 320px;
       transition: all 0.2s;
+      cursor: pointer;
   }
 
-  .announcement-pill:hover {
-      background: var(--color-bg-hover);
+  .announcement-pill.minimized {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 50%;
+      max-width: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .announcement-pill.minimized #announcement-text,
+  .announcement-pill.minimized #announcement-gmeet-btn,
+  .announcement-pill.minimized #announcement-close-btn {
+      display: none !important;
+  }
+
+  .announcement-pill.minimized #announcement-icon {
+      display: block !important;
   }
 
   #announcement-text {
@@ -898,20 +917,26 @@
       min-width: 0;
   }
 
+  #announcement-icon {
+      display: none;
+      width: 18px;
+      height: 18px;
+  }
+
   #announcement-gmeet-btn {
       background-color: var(--color-brand);
-      color: #fff;
+      color: var(--color-text-primary);
       padding: 4px 10px;
       border-radius: 12px;
       text-decoration: none;
       font-weight: 600;
       font-size: 12px;
-      transition: background-color 0.2s;
+      transition: opacity 0.2s;
       flex-shrink: 0;
   }
 
   #announcement-gmeet-btn:hover {
-      background-color: #005bb5;
+      opacity: 0.8;
   }
 
   #announcement-close-btn {
@@ -935,8 +960,95 @@
   #announcement-close-btn:hover {
       opacity: 1;
   }
+
+  /* Calendar Events Popup */
+  #calendar-events-popup {
+      position: fixed;
+      z-index: 200;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      width: 320px;
+      max-height: 400px;
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.95) translateY(-10px);
+      transition: all 0.15s ease-out;
+      transform-origin: top right;
+      overflow: hidden;
+  }
+
+  #calendar-events-popup.show {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1) translateY(0);
+  }
+
+  .calendar-popup-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--color-border);
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--color-text-primary);
+  }
+
+  .calendar-popup-content {
+      max-height: 340px;
+      overflow-y: auto;
+  }
+
+  .calendar-event-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--color-border);
+      transition: background-color 0.2s;
+  }
+
+  .calendar-event-item:last-child {
+      border-bottom: none;
+  }
+
+  .calendar-event-item:hover {
+      background-color: var(--color-bg-hover);
+  }
+
+  .calendar-event-title {
+      font-weight: 500;
+      font-size: 13px;
+      color: var(--color-text-primary);
+      margin-bottom: 4px;
+  }
+
+  .calendar-event-time {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      margin-bottom: 8px;
+  }
+
+  .calendar-event-join {
+      background-color: var(--color-brand);
+      color: var(--color-text-primary);
+      padding: 4px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 12px;
+      display: inline-block;
+      transition: opacity 0.2s;
+  }
+
+  .calendar-event-join:hover {
+      opacity: 0.8;
+  }
+
+  .calendar-no-events {
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--color-text-secondary);
+      font-size: 13px;
+  }
   /* ===== END: ANNOUNCEMENT PILL CSS ===== */
-  
+
   .form-group { display: flex; flex-direction: column; }
   .form-group label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 4px; }
   .form-group input, .form-group select { width: 100%; height: 40px; border: 1px solid var(--color-border); background: var(--color-bg); border-radius: var(--radius-md); padding: 0 12px; font-size: 14px; color: var(--color-text-primary); }
@@ -1081,6 +1193,7 @@
         <div class="top-bar-right">
             <!-- ===== START: ANNOUNCEMENT BANNER (PILL) ===== -->
             <div id="announcement-banner" class="announcement-pill" style="display: none;">
+                <i id="announcement-icon" class="icon" data-icon="calendar"></i>
                 <span id="announcement-text"></span>
                 <a id="announcement-gmeet-btn" href="#" target="_blank" rel="noopener noreferrer">Join</a>
                 <button id="announcement-close-btn" aria-label="Dismiss announcement">&times;</button>
@@ -1208,6 +1321,12 @@
     </div>
     <div class="popup-item" data-target="#admin-generate-sheet-panel">
         <i class="icon" data-icon="sheet"></i><label>Generate Week Sheet</label>
+    </div>
+</div>
+<div id="calendar-events-popup">
+    <div class="calendar-popup-header">Today's Calendar</div>
+    <div class="calendar-popup-content" id="calendar-events-list">
+        <div class="calendar-no-events">Loading events...</div>
     </div>
 </div>
 <div id="admin-panels-container">
@@ -1454,8 +1573,11 @@ const App = {
             announcement: {
                 banner: document.getElementById('announcement-banner'),
                 text: document.getElementById('announcement-text'),
+                icon: document.getElementById('announcement-icon'),
                 gmeetBtn: document.getElementById('announcement-gmeet-btn'),
-                closeBtn: document.getElementById('announcement-close-btn')
+                closeBtn: document.getElementById('announcement-close-btn'),
+                popup: document.getElementById('calendar-events-popup'),
+                eventsList: document.getElementById('calendar-events-list')
             },
             customize: {
                 trigger: document.getElementById('customize-trigger'),
@@ -1473,9 +1595,17 @@ const App = {
         this.dom.userMenu.trigger.addEventListener('click', (e) => UI.togglePopupMenu(this.dom.userMenu.popup, e, this.dom.userMenu.trigger));
         this.dom.userMenu.userSearchInput.addEventListener('input', (e) => UI.renderUserSelectionPopup(this.state.users, e.target.value));
         
+        this.dom.announcement.banner.addEventListener('click', (e) => {
+            // Don't trigger if clicking the join button or close button
+            if (e.target.id === 'announcement-gmeet-btn' || e.target.id === 'announcement-close-btn') {
+                return;
+            }
+            UI.toggleCalendarPopup(e);
+        });
+
         this.dom.announcement.closeBtn.addEventListener('click', (e) => {
-            const eventId = e.currentTarget.dataset.eventId;
-            UI.hideAnnouncementBanner(eventId);
+            e.stopPropagation();
+            UI.minimizeAnnouncementBanner();
         });
 
         // Customize panel event listeners
@@ -1949,12 +2079,15 @@ Object.assign(App, {
             const events = await API.getTodaysCalendarEvents();
             if (events && events.length > 0) {
                 const now = new Date();
-                const upcomingEvent = events
+                const upcomingEvents = events
                     .filter(event => new Date(event.endTime) > now)
-                    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))[0];
+                    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-                if (upcomingEvent) {
-                    UI.showAnnouncementBanner(upcomingEvent);
+                // Store all upcoming events for the popup
+                this.state.calendarEvents = upcomingEvents;
+
+                if (upcomingEvents.length > 0) {
+                    UI.showAnnouncementBanner(upcomingEvents[0]);
                 }
             }
         } catch (error) {
@@ -2019,6 +2152,15 @@ Object.assign(UI, {
         if (isDesktop && customizeSidebar.classList.contains('is-visible')) {
             if (!customizeSidebar.contains(event.target) && !customizeTrigger.contains(event.target)) {
                 customizeSidebar.classList.remove('is-visible');
+            }
+        }
+
+        // Handle calendar popup
+        const calendarPopup = App.dom.announcement.popup;
+        const calendarBanner = App.dom.announcement.banner;
+        if (calendarPopup && calendarPopup.classList.contains('show')) {
+            if (!calendarBanner.contains(event.target) && !calendarPopup.contains(event.target)) {
+                calendarPopup.classList.remove('show');
             }
         }
 
@@ -2355,6 +2497,70 @@ Object.assign(UI, {
         if (eventId) {
             sessionStorage.setItem('dismissedEvent_' + eventId, 'true');
         }
+    },
+    minimizeAnnouncementBanner() {
+        const { banner } = App.dom.announcement;
+        banner.classList.add('minimized');
+    },
+    expandAnnouncementBanner() {
+        const { banner } = App.dom.announcement;
+        banner.classList.remove('minimized');
+    },
+    toggleCalendarPopup(event) {
+        const { banner, popup } = App.dom.announcement;
+
+        // If minimized, expand it first
+        if (banner.classList.contains('minimized')) {
+            this.expandAnnouncementBanner();
+            return;
+        }
+
+        // Toggle the popup
+        event.stopPropagation();
+        const isVisible = popup.classList.contains('show');
+
+        // Hide all other popups
+        document.querySelectorAll('.popup-menu.show').forEach(p => p.classList.remove('show'));
+
+        if (!isVisible) {
+            // Position the popup below the banner
+            const rect = banner.getBoundingClientRect();
+            popup.style.top = `${rect.bottom + 8}px`;
+            popup.style.right = `${window.innerWidth - rect.right}px`;
+            popup.style.left = 'auto';
+
+            // Render calendar events
+            this.renderCalendarEvents();
+            popup.classList.add('show');
+        } else {
+            popup.classList.remove('show');
+        }
+    },
+    renderCalendarEvents() {
+        const { eventsList } = App.dom.announcement;
+        const events = App.state.calendarEvents || [];
+
+        if (events.length === 0) {
+            eventsList.innerHTML = '<div class="calendar-no-events">No upcoming events</div>';
+            return;
+        }
+
+        eventsList.innerHTML = events.map(event => {
+            const startTime = new Date(event.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+            const endTime = new Date(event.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+
+            const joinButton = event.gmeetLink
+                ? `<a href="${event.gmeetLink}" target="_blank" rel="noopener noreferrer" class="calendar-event-join">Join</a>`
+                : '';
+
+            return `
+                <div class="calendar-event-item">
+                    <div class="calendar-event-title">${event.title}</div>
+                    <div class="calendar-event-time">${startTime} - ${endTime}</div>
+                    ${joinButton}
+                </div>
+            `;
+        }).join('');
     },
     showToast(message, type = 'info', duration = 4000) {
         const container = document.getElementById('toast-container'); const toast = document.createElement('div');
