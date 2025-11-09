@@ -2,20 +2,31 @@ const SUPER_ADMIN_EMAILS = ['cantiporta@threecolts.com'];
 const ADMIN_EMAILS = ['apelagio@threecolts.com'];
 
 /**
- * Calendar emails: Users whose calendars will be displayed in the app.
- * These users must share their calendars with you (the script owner).
+ * Calendars to check for events. These users must share their calendars with you (script owner).
+ * The script will read events from these calendars, then filter by ALLOWED_EVENT_CREATORS.
  *
- * To enable this feature:
- * 1. Have these users share their Google Calendar with you
- * 2. Add their email addresses to this array
- * 3. Deploy the app with "Execute as: Me"
- *
- * Leave empty [] to disable calendar feature completely.
- * All app users will see events from these calendars (not their own).
+ * Common approach: Add 'primary' to check your own calendar, or add specific user emails.
  */
-const SHARED_CALENDAR_EMAILS = [
-  // 'cantiporta@threecolts.com',  // Uncomment to show this user's calendar
-  // 'apelagio@threecolts.com',     // Uncomment to show this user's calendar
+const CALENDARS_TO_CHECK = [
+  'primary',  // Your own calendar (the script owner's calendar)
+  // 'cantiporta@threecolts.com',  // Add more calendars if they're shared with you
+  // 'apelagio@threecolts.com',
+];
+
+/**
+ * Event creators filter: Only show events CREATED BY these users to all app users.
+ * Events created by anyone else will only be visible to admins.
+ *
+ * How it works:
+ * - If an event's organizer/creator is in this list → ALL users see it
+ * - If not in this list → Only admins see it
+ *
+ * Example: Add Gemma Bianchi's email, and all users will see meetings she created.
+ * Leave empty [] to disable calendar feature completely.
+ */
+const ALLOWED_EVENT_CREATORS = [
+  // 'gbnchi@threecolts.com',  // Gemma Bianchi - uncomment to show her events to everyone
+  // 'cantiporta@threecolts.com',  // Add more allowed creators
 ];
 
 /**
@@ -514,26 +525,33 @@ function processTimeEntry(userName, actionKey, timestamp) {
 }
 
 /**
- * Fetches today's calendar events from shared calendars.
+ * Fetches today's calendar events with filtering by event creator.
  *
- * This function shows events from specific users' calendars (configured in SHARED_CALENDAR_EMAILS).
- * All app users will see the same events from these shared calendars.
+ * This function reads events from calendars (configured in CALENDARS_TO_CHECK),
+ * then filters them based on who CREATED the event (the organizer).
+ *
+ * Filtering logic:
+ * - Events created by users in ALLOWED_EVENT_CREATORS → shown to ALL users
+ * - Events created by anyone else → shown only to admins
+ *
+ * Example: If Gemma Bianchi is in ALLOWED_EVENT_CREATORS, all users see her meetings.
+ * But if she's invited to someone else's meeting, only admins see it.
  *
  * Requirements:
- * - Users in SHARED_CALENDAR_EMAILS must share their calendars with you (script owner)
+ * - Calendars in CALENDARS_TO_CHECK must be shared with you (script owner)
  * - App must be deployed as "Execute as: Me"
  * - No domain-wide delegation needed
  *
- * How to set up:
- * 1. Ask specific users (e.g., admins) to share their Google Calendar with you
- * 2. Add their emails to SHARED_CALENDAR_EMAILS array at the top of this file
- * 3. Deploy/redeploy the app
- *
- * @returns {Array} List of event objects from shared calendars
+ * @returns {Array} List of event objects filtered by creator
  */
 function getTodaysCalendarEvents() {
-  // If no shared calendars configured, return empty array
-  if (!SHARED_CALENDAR_EMAILS || SHARED_CALENDAR_EMAILS.length === 0) {
+  // If no allowed creators configured, return empty array (calendar disabled)
+  if (!ALLOWED_EVENT_CREATORS || ALLOWED_EVENT_CREATORS.length === 0) {
+    return [];
+  }
+
+  // If no calendars to check, return empty array
+  if (!CALENDARS_TO_CHECK || CALENDARS_TO_CHECK.length === 0) {
     return [];
   }
 
@@ -543,11 +561,12 @@ function getTodaysCalendarEvents() {
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
     const allEvents = [];
+    const currentUserIsAdmin = isAdmin_(); // Check if current user is admin
 
-    // Fetch events from each shared calendar
-    for (const calendarEmail of SHARED_CALENDAR_EMAILS) {
+    // Fetch events from each calendar
+    for (const calendarId of CALENDARS_TO_CHECK) {
       try {
-        const eventsList = Calendar.Events.list(calendarEmail, {
+        const eventsList = Calendar.Events.list(calendarId, {
           timeMin: startOfDay.toISOString(),
           timeMax: endOfDay.toISOString(),
           singleEvents: true,
@@ -558,31 +577,46 @@ function getTodaysCalendarEvents() {
           // Filter out all-day events (they have a 'date' property instead of 'dateTime')
           const timedEvents = eventsList.items.filter(event => event.start.dateTime);
 
-          // Map to frontend format
-          const mappedEvents = timedEvents.map(event => {
-            let gmeetLink = null;
-            if (event.conferenceData && event.conferenceData.entryPoints) {
-              const videoEntryPoint = event.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
-              if (videoEntryPoint) {
-                gmeetLink = videoEntryPoint.uri;
-              }
+          // Filter by event creator/organizer
+          for (const event of timedEvents) {
+            // Get the organizer email (who created the event)
+            const organizerEmail = event.organizer ? event.organizer.email : null;
+
+            // Decide if this event should be shown
+            let showEvent = false;
+
+            if (organizerEmail && ALLOWED_EVENT_CREATORS.includes(organizerEmail)) {
+              // Event created by allowed user → show to everyone
+              showEvent = true;
+            } else if (currentUserIsAdmin) {
+              // Event not by allowed creator, but current user is admin → show it
+              showEvent = true;
             }
+            // Otherwise showEvent = false (don't show to regular users)
 
-            return {
-              id: event.id,
-              title: event.summary,
-              startTime: event.start.dateTime,
-              endTime: event.end.dateTime,
-              gmeetLink: gmeetLink,
-              calendarOwner: calendarEmail // Add owner info so users know whose calendar this is from
-            };
-          });
+            if (showEvent) {
+              let gmeetLink = null;
+              if (event.conferenceData && event.conferenceData.entryPoints) {
+                const videoEntryPoint = event.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
+                if (videoEntryPoint) {
+                  gmeetLink = videoEntryPoint.uri;
+                }
+              }
 
-          allEvents.push(...mappedEvents);
+              allEvents.push({
+                id: event.id,
+                title: event.summary,
+                startTime: event.start.dateTime,
+                endTime: event.end.dateTime,
+                gmeetLink: gmeetLink,
+                createdBy: organizerEmail // Show who created the event
+              });
+            }
+          }
         }
       } catch (calendarError) {
         // Log error but continue with other calendars
-        Logger.log(`Error fetching calendar events from ${calendarEmail}: ${calendarError.toString()}`);
+        Logger.log(`Error fetching calendar events from ${calendarId}: ${calendarError.toString()}`);
         // Don't throw - just skip this calendar and continue with others
       }
     }
