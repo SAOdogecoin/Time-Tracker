@@ -1,18 +1,28 @@
 const SUPER_ADMIN_EMAILS = ['cantiporta@threecolts.com'];
 const ADMIN_EMAILS = ['apelagio@threecolts.com'];
 
+/**
+ * Check if the current effective user (the person accessing the web app) is a super admin.
+ * Uses Session.getEffectiveUser() to work correctly when the script runs as owner (Execute as: Me).
+ * This allows non-admin users to use the app without needing direct sheet edit permissions.
+ */
 function isSuperAdmin_() {
   try {
-    const currentUserEmail = Session.getActiveUser().getEmail();
+    const currentUserEmail = Session.getEffectiveUser().getEmail();
     return SUPER_ADMIN_EMAILS.includes(currentUserEmail);
   } catch (e) {
     return false;
   }
 }
 
+/**
+ * Check if the current effective user (the person accessing the web app) is an admin.
+ * Uses Session.getEffectiveUser() to work correctly when the script runs as owner (Execute as: Me).
+ * This allows non-admin users to use the app without needing direct sheet edit permissions.
+ */
 function isAdmin_() {
   try {
-    const currentUserEmail = Session.getActiveUser().getEmail();
+    const currentUserEmail = Session.getEffectiveUser().getEmail();
     return SUPER_ADMIN_EMAILS.includes(currentUserEmail) || ADMIN_EMAILS.includes(currentUserEmail);
   } catch (e) {
     return false;
@@ -489,17 +499,19 @@ function processTimeEntry(userName, actionKey, timestamp) {
 /**
  * [CORRECTED VERSION] Fetches today's events from the user's primary calendar.
  * This uses the Advanced Calendar Service to reliably get Google Meet links.
+ * Uses Session.getEffectiveUser() to access the correct user's calendar when running as owner.
  * @returns {Array} A list of event objects for the frontend.
  */
 function getTodaysCalendarEvents() {
   try {
-    const userEmail = Session.getActiveUser().getEmail();
+    const userEmail = Session.getEffectiveUser().getEmail();
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    // Use the Advanced Calendar service (Calendar.*)
-    const eventsList = Calendar.Events.list('primary', {
+    // Use the Advanced Calendar service with the effective user's email
+    // This ensures we access the accessing user's calendar, not the script owner's
+    const eventsList = Calendar.Events.list(userEmail, {
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
       singleEvents: true,
@@ -512,7 +524,7 @@ function getTodaysCalendarEvents() {
 
     // Filter out all-day events (they have a 'date' property instead of 'dateTime')
     const timedEvents = eventsList.items.filter(event => event.start.dateTime);
-    
+
     return timedEvents.map(event => {
       let gmeetLink = null;
       if (event.conferenceData && event.conferenceData.entryPoints) {
@@ -521,7 +533,7 @@ function getTodaysCalendarEvents() {
           gmeetLink = videoEntryPoint.uri;
         }
       }
-      
+
       return {
         id: event.id,
         title: event.summary,
@@ -531,7 +543,7 @@ function getTodaysCalendarEvents() {
       };
     });
   } catch (e) {
-    Logger.log(`Error fetching calendar events for user ${Session.getActiveUser().getEmail()}: ${e.toString()}\nStack: ${e.stack}`);
+    Logger.log(`Error fetching calendar events for user ${Session.getEffectiveUser().getEmail()}: ${e.toString()}\nStack: ${e.stack}`);
     return [];
   }
 }
@@ -671,7 +683,7 @@ function getProfilePicDataUrlForFileId(fileId) {
   try {
     const file = DriveApp.getFileById(fileId);
     const fileName = file.getName();
-    const userEmail = Session.getActiveUser().getEmail();
+    const userEmail = Session.getEffectiveUser().getEmail();
     const sanitizedEmail = userEmail.replace(/[@.]/g, '_');
 
     // Security check: Allow users to view:
@@ -837,7 +849,7 @@ function getBackgroundImages() {
     }
     const folder = folders.next();
     const images = [];
-    const userEmail = Session.getActiveUser().getEmail();
+    const userEmail = Session.getEffectiveUser().getEmail();
     const sanitizedEmail = userEmail.replace(/[@.]/g, '_'); // Sanitize email for filename matching
 
     // Search for files that belong to this user or are predefined backgrounds
@@ -868,7 +880,7 @@ function saveBackgroundImage(base64Data, mimeType) {
     let folders = DriveApp.getFoldersByName(ASSET_FOLDER_NAME);
     let folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(ASSET_FOLDER_NAME);
 
-    const userEmail = Session.getActiveUser().getEmail();
+    const userEmail = Session.getEffectiveUser().getEmail();
     const sanitizedEmail = userEmail.replace(/[@.]/g, '_'); // Sanitize email for filename
     const timestamp = new Date().getTime();
     const fileName = `bg_custom_${sanitizedEmail}_${timestamp}.png`;
@@ -886,7 +898,7 @@ function deleteBackgroundImage(fileId) {
   try {
     const file = DriveApp.getFileById(fileId);
     const fileName = file.getName();
-    const userEmail = Session.getActiveUser().getEmail();
+    const userEmail = Session.getEffectiveUser().getEmail();
     const sanitizedEmail = userEmail.replace(/[@.]/g, '_');
 
     // Security check: Only allow users to delete their own backgrounds
