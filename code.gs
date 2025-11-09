@@ -2,6 +2,23 @@ const SUPER_ADMIN_EMAILS = ['cantiporta@threecolts.com'];
 const ADMIN_EMAILS = ['apelagio@threecolts.com'];
 
 /**
+ * Calendar emails: Users whose calendars will be displayed in the app.
+ * These users must share their calendars with you (the script owner).
+ *
+ * To enable this feature:
+ * 1. Have these users share their Google Calendar with you
+ * 2. Add their email addresses to this array
+ * 3. Deploy the app with "Execute as: Me"
+ *
+ * Leave empty [] to disable calendar feature completely.
+ * All app users will see events from these calendars (not their own).
+ */
+const SHARED_CALENDAR_EMAILS = [
+  // 'cantiporta@threecolts.com',  // Uncomment to show this user's calendar
+  // 'apelagio@threecolts.com',     // Uncomment to show this user's calendar
+];
+
+/**
  * Check if the current effective user (the person accessing the web app) is a super admin.
  * Uses Session.getEffectiveUser() to work correctly when the script runs as owner (Execute as: Me).
  * This allows non-admin users to use the app without needing direct sheet edit permissions.
@@ -497,67 +514,87 @@ function processTimeEntry(userName, actionKey, timestamp) {
 }
 
 /**
- * Calendar integration disabled.
- * Returns empty array to maintain frontend compatibility.
+ * Fetches today's calendar events from shared calendars.
  *
- * Reason: Calendar access requires domain-wide delegation which needs
- * Google Workspace Admin Console access. Since admin access is not available,
- * calendar feature has been removed. The main sheet write permission issue
- * is solved using Session.getEffectiveUser() + "Execute as: Me" deployment.
+ * This function shows events from specific users' calendars (configured in SHARED_CALENDAR_EMAILS).
+ * All app users will see the same events from these shared calendars.
  *
- * To re-enable calendar integration in the future:
- * 1. Set up domain-wide delegation (requires Workspace Admin)
- * 2. See SETUP_DOMAIN_WIDE_DELEGATION.md for instructions
- * 3. Replace this function with the calendar API implementation
+ * Requirements:
+ * - Users in SHARED_CALENDAR_EMAILS must share their calendars with you (script owner)
+ * - App must be deployed as "Execute as: Me"
+ * - No domain-wide delegation needed
  *
- * @returns {Array} Empty array (no calendar events)
+ * How to set up:
+ * 1. Ask specific users (e.g., admins) to share their Google Calendar with you
+ * 2. Add their emails to SHARED_CALENDAR_EMAILS array at the top of this file
+ * 3. Deploy/redeploy the app
+ *
+ * @returns {Array} List of event objects from shared calendars
  */
 function getTodaysCalendarEvents() {
-  // Calendar integration disabled - return empty array
-  return [];
+  // If no shared calendars configured, return empty array
+  if (!SHARED_CALENDAR_EMAILS || SHARED_CALENDAR_EMAILS.length === 0) {
+    return [];
+  }
 
-  /* ORIGINAL IMPLEMENTATION (commented out for future use):
   try {
-    const userEmail = Session.getEffectiveUser().getEmail();
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    const eventsList = Calendar.Events.list(userEmail, {
-      timeMin: startOfDay.toISOString(),
-      timeMax: endOfDay.toISOString(),
-      singleEvents: true,
-      orderBy: 'startTime'
-    });
+    const allEvents = [];
 
-    if (!eventsList.items || eventsList.items.length === 0) {
-      return [];
+    // Fetch events from each shared calendar
+    for (const calendarEmail of SHARED_CALENDAR_EMAILS) {
+      try {
+        const eventsList = Calendar.Events.list(calendarEmail, {
+          timeMin: startOfDay.toISOString(),
+          timeMax: endOfDay.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime'
+        });
+
+        if (eventsList.items && eventsList.items.length > 0) {
+          // Filter out all-day events (they have a 'date' property instead of 'dateTime')
+          const timedEvents = eventsList.items.filter(event => event.start.dateTime);
+
+          // Map to frontend format
+          const mappedEvents = timedEvents.map(event => {
+            let gmeetLink = null;
+            if (event.conferenceData && event.conferenceData.entryPoints) {
+              const videoEntryPoint = event.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
+              if (videoEntryPoint) {
+                gmeetLink = videoEntryPoint.uri;
+              }
+            }
+
+            return {
+              id: event.id,
+              title: event.summary,
+              startTime: event.start.dateTime,
+              endTime: event.end.dateTime,
+              gmeetLink: gmeetLink,
+              calendarOwner: calendarEmail // Add owner info so users know whose calendar this is from
+            };
+          });
+
+          allEvents.push(...mappedEvents);
+        }
+      } catch (calendarError) {
+        // Log error but continue with other calendars
+        Logger.log(`Error fetching calendar events from ${calendarEmail}: ${calendarError.toString()}`);
+        // Don't throw - just skip this calendar and continue with others
+      }
     }
 
-    const timedEvents = eventsList.items.filter(event => event.start.dateTime);
+    // Sort all events by start time
+    allEvents.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-    return timedEvents.map(event => {
-      let gmeetLink = null;
-      if (event.conferenceData && event.conferenceData.entryPoints) {
-        const videoEntryPoint = event.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
-        if (videoEntryPoint) {
-          gmeetLink = videoEntryPoint.uri;
-        }
-      }
-
-      return {
-        id: event.id,
-        title: event.summary,
-        startTime: event.start.dateTime,
-        endTime: event.end.dateTime,
-        gmeetLink: gmeetLink
-      };
-    });
+    return allEvents;
   } catch (e) {
-    Logger.log(`Error fetching calendar events: ${e.toString()}`);
+    Logger.log(`Error in getTodaysCalendarEvents: ${e.toString()}\nStack: ${e.stack}`);
     return [];
   }
-  */
 }
 
 function sanitizeKey_(inputString) { return inputString ? inputString.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') : null; }
