@@ -176,18 +176,44 @@
   .top-bar-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--color-border); background: var(--color-surface); cursor: pointer; color: var(--color-text-primary); transition: background-color 0.2s; }
   .top-bar-btn:hover { background: var(--color-bg-hover); }
 
-  /* Remove circle from customize trigger */
+  /* Customize trigger as transparent pill with text */
   #customize-trigger {
-    border: none;
-    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
     width: auto;
-    height: auto;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
   }
   #customize-trigger:hover {
-    background: transparent;
-    opacity: 0.7;
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
   }
-  
+  #customize-trigger .icon {
+    width: 18px;
+    height: 18px;
+  }
+  body.has-custom-bg #customize-trigger {
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  /* Smaller profile pic in topbar */
+  #user-menu-trigger {
+    width: 36px;
+    height: 36px;
+  }
+  #user-menu-trigger .profile-pic {
+    width: 32px;
+    height: 32px;
+  }
+
   .admin-panel-trigger {
       display: flex;
       align-items: center;
@@ -443,8 +469,10 @@
       border-radius: 12px;
       padding: 8px;
   }
-  .log-item { display: flex; align-items: center; justify-content: space-between; transition: background-color 0.2s; border-radius: var(--radius-md); padding: 8px; }
-  .log-item:hover { background-color: var(--color-bg-hover); }
+  .log-item { display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; border-radius: var(--radius-md); padding: 8px; position: relative; border: 2px solid transparent; }
+  .log-item:hover { background-color: var(--color-bg-hover); transform: translateX(4px); }
+  .log-item.active-log { background-color: var(--color-bg-hover); border-color: var(--color-text-primary); box-shadow: 0 0 0 1px var(--color-text-primary); }
+  .log-item.active-log::before { content: ''; position: absolute; left: -2px; top: 50%; transform: translateY(-50%); width: 4px; height: 60%; background: var(--color-text-primary); border-radius: 2px; }
   .log-item-info { display: flex; align-items: center; gap: 12px; }
   .log-icon-wrapper { width: 32px; height: 32px; border-radius: 50%; background-color: var(--color-bg); display: flex; align-items: center; justify-content: center; }
   .log-label { font-weight: 500; color: var(--color-text-primary); }
@@ -603,7 +631,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-surface);
+    background: rgba(0, 0, 0, 0.3);
   }
   .theme-card:hover {
     border-color: var(--color-text-secondary);
@@ -1050,6 +1078,7 @@
 
             <button id="customize-trigger" class="top-bar-btn" aria-label="Customize appearance">
                 <i class="icon" data-icon="palette"></i>
+                <span>Customize</span>
             </button>
             <div class="user-menu-container">
                 <button id="user-menu-trigger" class="top-bar-btn" aria-label="Open User Menu">
@@ -2042,16 +2071,20 @@ Object.assign(UI, {
         App.dom.dashboard.logContainer.innerHTML = logMap.map(item => {
             const hasEntry = timeEntries && timeEntries[item.key] && timeEntries[item.key] !== '--';
             const timeDisplay = hasEntry ? timeEntries[item.key] : '--';
-            
+
             let durationSpan = '';
+            let isActiveLog = false;
             if (App.state.currentUser) {
                 const { activeLogKey } = App.state.currentUser;
-                if (item.key === activeLogKey && App.state.currentUser.status !== 'Offline' && App.state.currentUser.status !== 'Working') {
+                isActiveLog = item.key === activeLogKey;
+                if (isActiveLog && App.state.currentUser.status !== 'Offline' && App.state.currentUser.status !== 'Working') {
                     durationSpan = ` <span id="log-duration-timer" class="log-duration"></span>`;
                 }
             }
-            
-            return `<div class="log-item">
+
+            const activeClass = isActiveLog ? ' active-log' : '';
+
+            return `<div class="log-item${activeClass}">
                         <div class="log-item-info">
                             <div class="log-icon-wrapper"><i class="icon" data-icon="${item.icon}"></i></div>
                             <div>
